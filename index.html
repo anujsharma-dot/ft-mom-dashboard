@@ -1,1 +1,2319 @@
+<!DOCTYPE html>
 
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Month over Month FT Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+
+:root {
+–bg: #0d0f14;
+–surface: #161922;
+–surface2: #1e2330;
+–border: #2a3045;
+–header-h: #1a2035;
+–accent: #4f8ef7;
+–accent2: #f7a74f;
+–accent3: #4ff7b0;
+–accent4: #f74f7a;
+–accent5: #a78bfa;
+–text: #e8ecf5;
+–text-dim: #8892a4;
+/* Legacy aliases */
+–green: #4ff7b0;
+–purple: #a78bfa;
+–red: #f74f7a;
+–yellow: #f7a74f;
+–muted: #8892a4;
+–card-h: 220px;
+}
+
+- { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+font-family: ‘DM Sans’, sans-serif;
+background: var(–bg);
+color: var(–text);
+min-height: 100vh;
+font-size: 16px;
+line-height: 1.5;
+}
+
+/* Grid background */
+body::before {
+content: ‘’;
+position: fixed;
+inset: 0;
+background-image:
+linear-gradient(rgba(79,255,176,0.03) 1px, transparent 1px),
+linear-gradient(90deg, rgba(79,255,176,0.03) 1px, transparent 1px);
+background-size: 40px 40px;
+pointer-events: none;
+z-index: 0;
+}
+
+.wrap { max-width: 1400px; margin: 0 auto; padding: 32px 24px; position: relative; z-index: 1; }
+
+/* Header */
+.header {
+display: flex;
+align-items: center;
+justify-content: center;
+margin-bottom: 36px;
+padding-bottom: 20px;
+border-bottom: 1px solid var(–border);
+text-align: center;
+flex-direction: column;
+}
+.header-left {}
+.badge {
+display: inline-block;
+font-family: ‘Space Mono’, monospace;
+font-size: 16px;
+background: rgba(79,255,176,0.1);
+color: var(–green);
+border: 1px solid rgba(79,255,176,0.3);
+padding: 3px 10px;
+border-radius: 20px;
+letter-spacing: 2px;
+text-transform: uppercase;
+margin-bottom: 8px;
+}
+.header h1 {
+font-size: 32px;
+font-weight: 800;
+color: #fff;
+letter-spacing: -0.5px;
+text-align: center;
+}
+.header h1 span { color: var(–green); }
+.header-right {
+font-family: ‘Space Mono’, monospace;
+font-size: 16px;
+color: var(–muted);
+text-align: right;
+}
+.last-updated {
+color: var(–green);
+font-size: 16px;
+margin-top: 4px;
+}
+
+/* Dashboard Grid */
+.grid {
+display: grid;
+grid-template-columns: repeat(3, 1fr);
+gap: 18px;
+}
+
+/* Card */
+.card {
+background: var(–surface);
+border: 1px solid var(–border);
+border-radius: 14px;
+padding: 24px;
+cursor: pointer;
+transition: all 0.25s;
+position: relative;
+overflow: hidden;
+min-height: var(–card-h);
+display: flex;
+flex-direction: column;
+}
+.card::before {
+content: ‘’;
+position: absolute;
+top: 0; left: 0; right: 0;
+height: 3px;
+background: linear-gradient(90deg, var(–green), var(–purple));
+transform: scaleX(0);
+transform-origin: left;
+transition: transform 0.3s;
+}
+.card:hover { border-color: rgba(79,255,176,0.4); transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+.card:hover::before { transform: scaleX(1); }
+
+.card.locked { cursor: pointer; }
+.card.locked::before { background: linear-gradient(90deg, var(–red), #ff9f43); }
+.card.locked:hover { border-color: rgba(255,107,107,0.4); }
+
+.card-icon { font-size: 28px; margin-bottom: 10px; }
+.card-title {
+font-size: 16px;
+font-weight: 700;
+text-transform: uppercase;
+letter-spacing: 1px;
+color: var(–green);
+margin-bottom: 6px;
+}
+.card.locked .card-title { color: var(–red); }
+.card-desc { font-size: 16px; color: var(–muted); line-height: 1.6; flex: 1; }
+
+.lock-badge {
+position: absolute;
+top: 14px; right: 14px;
+background: rgba(255,107,107,0.15);
+color: var(–red);
+border: 1px solid rgba(255,107,107,0.3);
+font-size: 16px;
+font-family: ‘Space Mono’, monospace;
+padding: 3px 8px;
+border-radius: 20px;
+letter-spacing: 1px;
+}
+
+.card-stats {
+display: flex;
+gap: 12px;
+margin-top: 14px;
+padding-top: 14px;
+border-top: 1px solid var(–border);
+}
+.stat { flex: 1; }
+.stat-label { font-size: 16px; color: var(–muted); font-family: ‘Space Mono’, monospace; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+.stat-val { font-size: 18px; font-weight: 700; color: #fff; font-family: ‘Space Mono’, monospace; }
+.stat-val.green { color: var(–green); }
+.stat-val.purple { color: var(–purple); }
+.stat-val.yellow { color: var(–yellow); }
+
+/* Password Overlay */
+.pw-overlay {
+display: none;
+position: fixed; inset: 0;
+background: rgba(8,12,20,0.92);
+z-index: 1000;
+align-items: center;
+justify-content: center;
+backdrop-filter: blur(8px);
+}
+.pw-overlay.show { display: flex; }
+.pw-box {
+background: var(–surface2);
+border: 1px solid rgba(79,255,176,0.3);
+border-radius: 16px;
+padding: 40px;
+width: 380px;
+text-align: center;
+}
+.pw-box h3 { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+.pw-box p { font-size: 16px; color: var(–muted); margin-bottom: 24px; }
+.pw-box input {
+width: 100%; padding: 14px 16px;
+background: var(–bg);
+border: 1px solid var(–border);
+border-radius: 8px;
+color: var(–text);
+font-family: ‘Space Mono’, monospace;
+font-size: 16px;
+margin-bottom: 12px;
+outline: none;
+transition: border-color 0.2s;
+}
+.pw-box input:focus { border-color: var(–green); }
+.pw-btn {
+width: 100%; padding: 14px;
+background: linear-gradient(135deg, var(–green), #00d9a3);
+color: #080c14;
+border: none; border-radius: 8px;
+font-family: ‘Space Mono’, monospace;
+font-size: 16px; font-weight: 700;
+cursor: pointer;
+transition: opacity 0.2s;
+}
+.pw-btn:hover { opacity: 0.9; }
+.pw-err { color: var(–red); font-size: 16px; margin-top: 8px; display: none; font-family: ‘Space Mono’, monospace; }
+
+/* Upload Modal */
+.modal {
+display: none;
+position: fixed; inset: 0;
+background: rgba(8,12,20,0.92);
+z-index: 1000;
+align-items: center;
+justify-content: center;
+backdrop-filter: blur(8px);
+}
+.modal.show { display: flex; }
+.modal-box {
+background: var(–surface2);
+border: 1px solid var(–border);
+border-radius: 16px;
+padding: 36px;
+width: 720px;
+max-height: 88vh;
+overflow-y: auto;
+position: relative;
+}
+.modal-header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 28px;
+}
+.modal-header h2 { font-size: 20px; font-weight: 700; color: #fff; }
+.close-btn {
+background: none; border: none; color: var(–muted);
+font-size: 24px; cursor: pointer; width: 36px; height: 36px;
+border-radius: 50%; transition: all 0.2s;
+display: flex; align-items: center; justify-content: center;
+}
+.close-btn:hover { background: var(–border); color: #fff; }
+
+.upload-grid {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 16px;
+margin-bottom: 20px;
+}
+.month-section { margin-bottom: 20px; }
+.month-label {
+font-size: 16px;
+font-weight: 700;
+text-transform: uppercase;
+letter-spacing: 2px;
+color: var(–purple);
+font-family: ‘Space Mono’, monospace;
+margin-bottom: 12px;
+padding-bottom: 8px;
+border-bottom: 1px solid var(–border);
+}
+.upload-box {
+background: var(–bg);
+border: 1px dashed var(–border);
+border-radius: 10px;
+padding: 20px;
+transition: all 0.2s;
+}
+.upload-box:hover { border-color: var(–green); }
+.upload-box h4 { font-size: 16px; font-weight: 600; color: var(–text); margin-bottom: 10px; }
+.upload-box input[type=“file”] {
+width: 100%;
+padding: 8px 0;
+color: var(–muted);
+font-size: 16px;
+font-family: ‘Space Mono’, monospace;
+background: none;
+border: none;
+cursor: pointer;
+}
+.file-status { font-size: 16px; color: var(–muted); margin-top: 6px; font-family: ‘Space Mono’, monospace; }
+.file-status.loaded { color: var(–green); }
+
+.process-btn {
+width: 100%; padding: 16px;
+background: linear-gradient(135deg, var(–green), #00d9a3);
+color: #080c14;
+border: none; border-radius: 10px;
+font-family: ‘Space Mono’, monospace;
+font-size: 16px; font-weight: 700;
+cursor: pointer;
+transition: all 0.2s;
+margin-top: 8px;
+}
+.process-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(79,255,176,0.3); }
+.process-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.progress-wrap { margin-top: 16px; display: none; }
+.progress-wrap.show { display: block; }
+.progress-bar { height: 6px; background: var(–border); border-radius: 4px; overflow: hidden; }
+.progress-fill {
+height: 100%; width: 0%;
+background: linear-gradient(90deg, var(–purple), var(–green));
+border-radius: 4px;
+transition: width 0.3s;
+}
+.progress-text { font-size: 16px; color: var(–muted); font-family: ‘Space Mono’, monospace; margin-top: 8px; text-align: center; }
+
+/* Report Modal */
+.report-modal {
+display: none;
+position: fixed; inset: 0;
+background: rgba(8,12,20,0.95);
+z-index: 2000;
+overflow-y: auto;
+padding: 24px;
+}
+.report-modal.show { display: block; }
+.report-inner {
+max-width: 1300px;
+margin: 0 auto;
+background: var(–surface2);
+border: 1px solid var(–border);
+border-radius: 16px;
+padding: 36px;
+position: relative;
+}
+.report-header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 28px;
+padding-bottom: 20px;
+border-bottom: 1px solid var(–border);
+}
+.report-header h2 { font-size: 22px; font-weight: 700; color: #fff; }
+.report-actions { display: flex; gap: 10px; align-items: center; }
+.export-btn {
+padding: 10px 20px;
+background: var(–purple);
+color: #fff; border: none; border-radius: 8px;
+font-family: ‘Space Mono’, monospace;
+font-size: 16px; font-weight: 600;
+cursor: pointer;
+transition: opacity 0.2s;
+}
+.export-btn:hover { opacity: 0.85; }
+
+/* Insights */
+.insights {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+gap: 12px;
+margin-bottom: 28px;
+}
+.insight {
+background: var(–bg);
+border: 1px solid var(–border);
+border-left: 3px solid var(–green);
+border-radius: 8px;
+padding: 14px 16px;
+font-size: 16px;
+line-height: 1.6;
+color: var(–muted);
+}
+.insight strong { color: var(–green); font-weight: 600; }
+.insight.warn { border-left-color: var(–yellow); }
+.insight.warn strong { color: var(–yellow); }
+.insight.alert { border-left-color: var(–red); }
+.insight.alert strong { color: var(–red); }
+
+/* Charts */
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 28px; }
+.chart-box { background: var(–bg); border: 1px solid var(–border); border-radius: 10px; padding: 20px; }
+.chart-box.wide { grid-column: 1 / -1; }
+.chart-title { font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(–muted); font-family: ‘Space Mono’, monospace; margin-bottom: 16px; }
+canvas { max-height: 300px; }
+
+/* Tables */
+.table-section { margin-bottom: 24px; }
+.table-title { font-size: 16px; font-weight: 700; color: var(–text); margin-bottom: 12px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(–border); border-radius: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 16px; }
+th {
+background: var(–bg);
+color: var(–green);
+font-family: ‘Space Mono’, monospace;
+font-size: 16px;
+font-weight: 500;
+text-transform: uppercase;
+letter-spacing: 1px;
+padding: 12px 14px;
+text-align: center;
+border-bottom: 1px solid var(–border);
+white-space: nowrap;
+position: sticky; top: 0;
+}
+th:first-child { text-align: left; }
+td {
+padding: 11px 14px;
+border-bottom: 1px solid rgba(30,42,58,0.5);
+text-align: center;
+font-family: ‘Space Mono’, monospace;
+font-size: 16px;
+color: var(–text);
+}
+td:first-child { text-align: left; font-family: ‘Space Mono’, monospace; font-size: 16px; font-weight: 500; }
+tr:hover td { background: rgba(79,255,176,0.03); }
+tr.total td { background: rgba(79,255,176,0.06); color: var(–green); font-weight: 600; border-top: 1px solid rgba(79,255,176,0.2); }
+tr.sub td { background: rgba(123,97,255,0.05); color: var(–purple); font-weight: 600; }
+
+.pos { color: var(–green) !important; }
+.neg { color: var(–red) !important; }
+.neu { color: var(–muted) !important; }
+
+/* Month headers */
+.month-col-apr { color: var(–purple) !important; }
+.month-col-may { color: var(–green) !important; }
+.month-col-chg { color: var(–yellow) !important; }
+
+/* Responsive */
+@media (max-width: 900px) {
+.grid { grid-template-columns: 1fr 1fr; }
+.upload-grid { grid-template-columns: 1fr; }
+.charts { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+.grid { grid-template-columns: 1fr; }
+}
+
+.info-bar {
+display: none;
+align-items: center;
+gap: 24px;
+background: rgba(79,255,176,0.05);
+border: 1px solid rgba(79,255,176,0.15);
+border-radius: 10px;
+padding: 12px 20px;
+margin-bottom: 24px;
+font-family: ‘Space Mono’, monospace;
+font-size: 16px;
+}
+.info-bar-item { display: flex; flex-direction: column; gap: 2px; }
+.info-bar-label { font-size: 16px; color: var(–muted); text-transform: uppercase; letter-spacing: 1px; }
+.info-bar-val { color: var(–green); font-weight: 500; }
+.info-bar-val.purple { color: var(–purple); }
+.info-bar-divider { width: 1px; height: 32px; background: var(–border); }
+
+.no-data {
+text-align: center;
+padding: 60px 20px;
+color: var(–muted);
+font-size: 16px;
+}
+.no-data span { display: block; font-size: 36px; margin-bottom: 12px; }
+</style>
+
+</head>
+<body>
+
+<div class="wrap">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="badge"></div>
+      <h1>Month over Month FT Dashboard</h1>
+    </div>
+    <div class="header-right">
+      <div>April vs May 2026</div>
+      <div class="last-updated" id="lastUpdated">No data loaded</div>
+    </div>
+  </div>
+
+  <!-- Info Bar -->
+
+  <div class="info-bar" id="infoBar">
+    <div class="info-bar-item">
+      <div class="info-bar-label">Comparison Basis</div>
+      <div class="info-bar-val">Trading Day Count (Apple to Apple)</div>
+    </div>
+    <div class="info-bar-divider"></div>
+    <div class="info-bar-item">
+      <div class="info-bar-label">May Trading Days</div>
+      <div class="info-bar-val" id="tdMayVal">—</div>
+    </div>
+    <div class="info-bar-divider"></div>
+    <div class="info-bar-item">
+      <div class="info-bar-label">April Days Used</div>
+      <div class="info-bar-val purple" id="tdAprVal">—</div>
+    </div>
+    <div class="info-bar-divider"></div>
+    <div class="info-bar-item">
+      <div class="info-bar-label">Apr Range</div>
+      <div class="info-bar-val purple" id="tdAprRange">—</div>
+    </div>
+    <div class="info-bar-divider"></div>
+    <div class="info-bar-item">
+      <div class="info-bar-label">May Range</div>
+      <div class="info-bar-val" id="tdMayRange">—</div>
+    </div>
+  </div>
+
+  <!-- Cards Grid -->
+
+  <div class="grid">
+    <div class="card" onclick="openReport('unit')">
+      <div class="card-icon">📈</div>
+      <div class="card-title">Unit Wise Analysis</div>
+      <div class="card-desc">HYD · Malad · Thane performance comparison with head count and productivity metrics</div>
+      <div class="card-stats" id="stats-unit">
+        <div class="stat"><div class="stat-label">Apr FTs</div><div class="stat-val purple" id="s-unit-apr">—</div></div>
+        <div class="stat"><div class="stat-label">May FTs</div><div class="stat-val green" id="s-unit-may">—</div></div>
+        <div class="stat"><div class="stat-label">Change</div><div class="stat-val yellow" id="s-unit-chg">—</div></div>
+      </div>
+    </div>
+
+```
+<div class="card" onclick="openReport('gl')">
+  <div class="card-icon">👥</div>
+  <div class="card-title">GL & TL Performance</div>
+  <div class="card-desc">Hierarchical GL → TL breakdown with unassigned Admin rows per unit</div>
+  <div class="card-stats">
+    <div class="stat"><div class="stat-label">Apr FTs</div><div class="stat-val purple" id="s-gl-apr">—</div></div>
+    <div class="stat"><div class="stat-label">May FTs</div><div class="stat-val green" id="s-gl-may">—</div></div>
+    <div class="stat"><div class="stat-label">Change</div><div class="stat-val yellow" id="s-gl-chg">—</div></div>
+  </div>
+</div>
+
+<div class="card" onclick="openReport('mode')">
+  <div class="card-icon">🔄</div>
+  <div class="card-title">Mode Bifurcation</div>
+  <div class="card-desc">Same Month · M-11 · Older Month split by unit with comparison</div>
+  <div class="card-stats">
+    <div class="stat"><div class="stat-label">Same Mo Apr</div><div class="stat-val purple" id="s-mode-apr">—</div></div>
+    <div class="stat"><div class="stat-label">Same Mo May</div><div class="stat-val green" id="s-mode-may">—</div></div>
+    <div class="stat"><div class="stat-label">Change</div><div class="stat-val yellow" id="s-mode-chg">—</div></div>
+  </div>
+</div>
+
+<div class="card" onclick="openReport('mom')">
+  <div class="card-icon">📅</div>
+  <div class="card-title">MOM Trend</div>
+  <div class="card-desc">16 activation buckets from M to >M36 with percentage distribution comparison</div>
+  <div class="card-stats">
+    <div class="stat"><div class="stat-label">M (Apr)</div><div class="stat-val purple" id="s-mom-apr">—</div></div>
+    <div class="stat"><div class="stat-label">M (May)</div><div class="stat-val green" id="s-mom-may">—</div></div>
+    <div class="stat"><div class="stat-label">Change</div><div class="stat-val yellow" id="s-mom-chg">—</div></div>
+  </div>
+</div>
+
+<div class="card" onclick="openReport('volume')">
+  <div class="card-icon">💰</div>
+  <div class="card-title">Volume Bucket</div>
+  <div class="card-desc">18 volume brackets ₹1–50 to >₹50K with unit-wise and overall comparison</div>
+  <div class="card-stats">
+    <div class="stat"><div class="stat-label">Apr Total</div><div class="stat-val purple" id="s-vol-apr">—</div></div>
+    <div class="stat"><div class="stat-label">May Total</div><div class="stat-val green" id="s-vol-may">—</div></div>
+    <div class="stat"><div class="stat-label">Change</div><div class="stat-val yellow" id="s-vol-chg">—</div></div>
+  </div>
+</div>
+
+<div class="card" onclick="openReport('user')">
+  <div class="card-icon">👤</div>
+  <div class="card-title">User Wise Report</div>
+  <div class="card-desc">RM-level FT comparison with Unit and TL grouping</div>
+  <div class="card-stats">
+    <div class="stat"><div class="stat-label">RMs Apr</div><div class="stat-val purple" id="s-user-apr">—</div></div>
+    <div class="stat"><div class="stat-label">RMs May</div><div class="stat-val green" id="s-user-may">—</div></div>
+    <div class="stat"><div class="stat-label">Active Both</div><div class="stat-val yellow" id="s-user-chg">—</div></div>
+  </div>
+</div>
+
+<div class="card" onclick="openReport('age')">
+  <div class="card-icon">🌍</div>
+  <div class="card-title">Age & State Analysis</div>
+  <div class="card-desc">Demographic breakdown by age group and top 15 states with conversion</div>
+  <div class="card-stats">
+    <div class="stat"><div class="stat-label">States Apr</div><div class="stat-val purple" id="s-age-apr">—</div></div>
+    <div class="stat"><div class="stat-label">States May</div><div class="stat-val green" id="s-age-may">—</div></div>
+    <div class="stat"><div class="stat-label">Change</div><div class="stat-val yellow" id="s-age-chg">—</div></div>
+  </div>
+</div>
+
+<div class="card" onclick="openReport('diy')">
+  <div class="card-icon">🎯</div>
+  <div class="card-title">DIY vs Non-DIY</div>
+  <div class="card-desc">Account type FT distribution from current month activations only</div>
+  <div class="card-stats">
+    <div class="stat"><div class="stat-label">DIY Apr</div><div class="stat-val purple" id="s-diy-apr">—</div></div>
+    <div class="stat"><div class="stat-label">DIY May</div><div class="stat-val green" id="s-diy-may">—</div></div>
+    <div class="stat"><div class="stat-label">Change</div><div class="stat-val yellow" id="s-diy-chg">—</div></div>
+  </div>
+</div>
+
+<div class="card locked" onclick="openAdminUpload()">
+  <div class="lock-badge">🔒 LOCKED</div>
+  <div class="card-icon">📤</div>
+  <div class="card-title">Admin Upload</div>
+  <div class="card-desc">Upload Previous & Current Month Client Master + FT Raw Data files. Password protected.</div>
+  <div class="card-stats">
+    <div class="stat"><div class="stat-label">Apr Files</div><div class="stat-val" id="s-admin-apr" style="color:var(--muted)">0 / 2</div></div>
+    <div class="stat"><div class="stat-label">May Files</div><div class="stat-val" id="s-admin-may" style="color:var(--muted)">0 / 2</div></div>
+  </div>
+</div>
+```
+
+  </div>
+</div>
+
+<!-- Password Overlay -->
+
+<div class="pw-overlay" id="pwOverlay">
+  <div class="pw-box" style="position:relative">
+    <button onclick="document.getElementById('pwOverlay').classList.remove('show');" style="position:absolute;top:10px;right:10px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">×</button>
+    <h3>🔒 Admin Access</h3>
+    <p>Enter password to access the upload section</p>
+    <input type="password" id="pwInput" placeholder="Password" onkeypress="if(event.key==='Enter') checkPw()">
+    <button class="pw-btn" onclick="checkPw()">Unlock</button>
+    <div class="pw-err" id="pwErr">Incorrect password. Try again.</div>
+  </div>
+</div>
+
+<!-- Upload Modal -->
+
+<div class="modal" id="uploadModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>📤 Admin Upload</h2>
+      <button class="close-btn" onclick="closeUpload()">×</button>
+    </div>
+
+```
+<div class="month-section">
+  <div class="month-label">📅 Previous Month</div>
+  <div class="upload-grid">
+    <div class="upload-box">
+      <h4>📁 Previous Month Client Master</h4>
+      <input type="file" id="aprMaster" accept=".xlsx,.xls,.xlsb" onchange="handleFile('aprMaster')">
+      <div class="file-status" id="aprMasterStatus">Waiting for file...</div>
+    </div>
+    <div class="upload-box">
+      <h4>📈 Previous Month FT Raw Data</h4>
+      <input type="file" id="aprFT" accept=".xlsx,.xls,.xlsb" onchange="handleFile('aprFT')">
+      <div class="file-status" id="aprFTStatus">Waiting for file...</div>
+    </div>
+  </div>
+</div>
+
+<div class="month-section">
+  <div class="month-label">📅 Current Month</div>
+  <div class="upload-grid">
+    <div class="upload-box">
+      <h4>📁 Current Month Client Master</h4>
+      <input type="file" id="mayMaster" accept=".xlsx,.xls,.xlsb" onchange="handleFile('mayMaster')">
+      <div class="file-status" id="mayMasterStatus">Waiting for file...</div>
+    </div>
+    <div class="upload-box">
+      <h4>📈 Current Month FT Raw Data</h4>
+      <input type="file" id="mayFT" accept=".xlsx,.xls,.xlsb" onchange="handleFile('mayFT')">
+      <div class="file-status" id="mayFTStatus">Waiting for file...</div>
+    </div>
+  </div>
+</div>
+
+<button class="process-btn" id="processBtn" disabled onclick="processData()">⚡ Process & Generate Comparison</button>
+
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="progress-text" id="progressText">Processing...</div>
+</div>
+```
+
+  </div>
+</div>
+
+<!-- Report Modal -->
+
+<div class="report-modal" id="reportModal">
+  <div class="report-inner">
+    <div class="report-header">
+      <h2 id="reportTitle">Report</h2>
+      <div class="report-actions">
+        <button class="export-btn" onclick="exportReport()">📥 Export Excel</button>
+        <button class="close-btn" onclick="closeReport()">×</button>
+      </div>
+    </div>
+    <div id="reportContent"></div>
+  </div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+const PW = 'Megha@1234';
+
+// ── Cloudflare Config ──────────────────────────────────────────
+const CF_WORKER_URL = '';           // e.g. https://ft-mom-worker.your-account.workers.dev
+const CF_ADMIN_SECRET = 'MoM FT';  // Admin secret for write access
+// ──────────────────────────────────────────────────────────────
+
+// Save processed data to Cloudflare KV via Worker
+async function saveToCloud(data) {
+  if (!CF_WORKER_URL) return; // skip if worker not configured
+  try {
+    const res = await fetch(CF_WORKER_URL + '/save', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Secret': CF_ADMIN_SECRET
+      },
+      body: JSON.stringify(data)
+    });
+    if (res.ok) {
+      console.log('Data saved to Cloudflare KV');
+    } else {
+      console.warn('Failed to save to Cloudflare:', res.status);
+    }
+  } catch (e) {
+    console.warn('Cloudflare save error:', e);
+  }
+}
+
+// Load data from Cloudflare KV via Worker
+async function loadFromCloud() {
+  if (!CF_WORKER_URL) return null;
+  try {
+    const res = await fetch(CF_WORKER_URL + '/load', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+    return null;
+  } catch (e) {
+    console.warn('Cloudflare load error:', e);
+    return null;
+  }
+}
+const UNITS = ['HYD', 'Malad', 'Thane'];
+const BUCKETS = ['M','M - 1','M - 2','M - 3','M - 4','M - 5','M - 6','M - 7','M - 8','M - 9','M - 10','M - 11','M - 12','M 13 -24','M 25 - 36','>M  36'];
+const VOL_BUCKETS = ['1 - 50','51 - 100','101 - 200','201 - 350','351 - 500','501 - 750','751 - 1000','1001 - 2000','2001 - 3500','3501 - 5000','5001 - 7500','7501 - 10000','10001 - 15000','15001 - 20000','20001 - 30000','30001 - 40000','40001 - 50000','> 50000'];
+
+let rawData = { aprMaster: null, aprFT: null, mayMaster: null, mayFT: null };
+let processed = null;
+let currentReport = '';
+let charts = {};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function parseDate(v) {
+  if (!v && v !== 0) return null;
+
+  // JavaScript Date object
+  if (v instanceof Date) return isNaN(v) ? null : v;
+
+  // Excel serial number (most reliable — comes when raw:true)
+  if (typeof v === 'number') {
+    // Excel serial: days since 1900-01-01 (with leap year bug correction)
+    const d = new Date(Date.UTC(1899, 11, 30) + v * 86400 * 1000);
+    return isNaN(d) ? null : d;
+  }
+
+  const s = String(v).trim();
+  if (!s) return null;
+
+  // CRITICAL: Try DD-MM-YYYY first before any JS Date parsing
+  // JS Date() reads "01-04-2026" as Jan 4 (MM-DD) which is WRONG for Indian format
+  // Our regex correctly reads it as Apr 1 (DD-MM)
+
+  // Handle "30-03-2026 00:00" or "30-03-2026 00:00:00" or "30-03-2026" format (DD-MM-YYYY)
+  const ddmmyyyy = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+  if (ddmmyyyy) {
+    const day = parseInt(ddmmyyyy[1]);
+    const month = parseInt(ddmmyyyy[2]) - 1;
+    const year = parseInt(ddmmyyyy[3]);
+    // Validate: month 0-11, day 1-31
+    if (month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+      // Use UTC to avoid timezone issues
+      return new Date(Date.UTC(year, month, day));
+    }
+    // If month/day swapped (MM-DD-YYYY), try swapping
+    const dayAlt = parseInt(ddmmyyyy[2]);
+    const monthAlt = parseInt(ddmmyyyy[1]) - 1;
+    if (monthAlt >= 0 && monthAlt <= 11 && dayAlt >= 1 && dayAlt <= 31) {
+      return new Date(year, monthAlt, dayAlt);
+    }
+  }
+
+  // Handle "2026-03-30" or "2026-03-30 00:00" format (YYYY-MM-DD)
+  const yyyymmdd = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (yyyymmdd) {
+    const d = new Date(
+      parseInt(yyyymmdd[1]),
+      parseInt(yyyymmdd[2]) - 1,
+      parseInt(yyyymmdd[3])
+    );
+    return isNaN(d) ? null : d;
+  }
+
+  // Handle "30/03/2026" format (DD/MM/YYYY)
+  const ddmmyyyySlash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (ddmmyyyySlash) {
+    const d = new Date(
+      parseInt(ddmmyyyySlash[3]),
+      parseInt(ddmmyyyySlash[2]) - 1,
+      parseInt(ddmmyyyySlash[1])
+    );
+    return isNaN(d) ? null : d;
+  }
+
+  // Handle "01-May-26" or "01-May-2026" or "1-Apr" format
+  const ddMonYY = s.match(/^(\d{1,2})-([A-Za-z]{3})-?(\d{2,4})?$/);
+  if (ddMonYY) {
+    const year = ddMonYY[3] ? 
+      (ddMonYY[3].length === 2 ? 2000 + parseInt(ddMonYY[3]) : parseInt(ddMonYY[3])) 
+      : new Date().getFullYear();
+    const d = new Date(`${ddMonYY[1]} ${ddMonYY[2]} ${year}`);
+    return isNaN(d) ? null : d;
+  }
+
+  // Fallback — only for unambiguous formats
+  // Do NOT use new Date(s) for DD-MM-YYYY strings as JS reads them as MM-DD-YYYY
+  // If we reach here, the format is unknown — return null to be safe
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
+}
+
+function normalizeUnit(unitStr) {
+  const s = String(unitStr || '').trim().toLowerCase();
+  if (s.includes('hyd')) return 'HYD';
+  if (s.includes('mumbai') || s.includes('malad')) return 'Malad';
+  if (s.includes('thane')) return 'Thane';
+  if (s.includes('nri')) return 'NRI';
+  return unitStr || '';
+}
+
+function getMonthKey(d) {
+  if (!d) return null;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function parseDateSafe(v) {
+  // Specifically handles DD-MM-YYYY format used in Indian Excel files
+  // Avoids JS Date() which reads DD-MM-YYYY as MM-DD-YYYY
+  if (!v && v !== 0) return null;
+
+  // Already a JS Date object (from cellDates:true)
+  // Excel stores dates as UTC midnight, but IST is UTC+5:30
+  // So "01-04-2026 00:00 IST" is stored as "31-03-2026 18:30 UTC"
+  // We need to add IST offset (5.5 hours = 19800000 ms) to get correct date
+  if (v instanceof Date) {
+    if (isNaN(v)) return null;
+    // Excel stores dates with time 23:59:50 IST
+    // Local date functions give the correct date as it appears in Excel
+    // Mar 31 23:59:50 IST → getDate()=31, getMonth()=2 (March) → correct for activation
+    return new Date(Date.UTC(v.getFullYear(), v.getMonth(), v.getDate()));
+  }
+
+  // Excel serial number
+  if (typeof v === 'number') {
+    const d = new Date(Date.UTC(1899, 11, 30) + v * 86400 * 1000);
+    return isNaN(d) ? null : d;
+  }
+
+  const s = String(v).trim();
+  if (!s) return null;
+
+  // DD-MM-YYYY (with optional time) — most common Indian format
+  // e.g. "01-04-2026 00:00" or "01-04-2026 00:00:00"
+  const m1 = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+  if (m1) {
+    const day = parseInt(m1[1]);
+    const month = parseInt(m1[2]) - 1; // 0-indexed
+    const year = parseInt(m1[3]);
+    if (month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+      // Use UTC to avoid timezone issues
+      return new Date(Date.UTC(year, month, day));
+    }
+  }
+
+  // YYYY-MM-DD format
+  const m2 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m2) {
+    return new Date(Date.UTC(parseInt(m2[1]), parseInt(m2[2]) - 1, parseInt(m2[3])));
+  }
+
+  // DD/MM/YYYY format
+  const m3 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m3) {
+    return new Date(Date.UTC(parseInt(m3[3]), parseInt(m3[2]) - 1, parseInt(m3[1])));
+  }
+
+  // DD-Mon-YY e.g. "01-Apr-26"
+  const m4 = s.match(/^(\d{1,2})-([A-Za-z]{3})-?(\d{2,4})$/);
+  if (m4) {
+    const year = m4[3].length === 2 ? 2000 + parseInt(m4[3]) : parseInt(m4[3]);
+    return new Date(`${m4[1]} ${m4[2]} ${year}`);
+  }
+
+  return null;
+}
+
+function parseFTDate(v) {
+  // Special parser for FT dates used in filtering
+  // Excel FT dates stored as 23:59:50 IST of the PREVIOUS day
+  // e.g. Apr 06 stored as Apr 05 23:59:50 IST → need to add 1 day
+  if (!v && v !== 0) return null;
+  if (v instanceof Date) {
+    if (isNaN(v)) return null;
+    const localH = v.getHours();
+    const localM = v.getMinutes();
+    if (localH === 23 && localM >= 59) {
+      // Add 1 day to get correct FT date
+      return new Date(Date.UTC(v.getFullYear(), v.getMonth(), v.getDate() + 1));
+    }
+    return new Date(Date.UTC(v.getFullYear(), v.getMonth(), v.getDate()));
+  }
+  // For non-Date values, use parseDateSafe
+  return parseDateSafe(v);
+}
+
+function calcActMonth(actDate, ftDate) {
+  const a = parseDateSafe(actDate), f = parseDateSafe(ftDate);
+  if (!a || !f) return '';
+  // Match Excel logic: YEAR/MONTH after INT() which strips time
+  // Use LOCAL year/month (same as Excel YEAR/MONTH functions)
+  const aYear = a.getFullYear(), aMonth = a.getMonth();
+  const fYear = f.getFullYear(), fMonth = f.getMonth();
+  const months = (fYear - aYear) * 12 + (fMonth - aMonth);
+  if (months === 0) return 'M';
+  if (months >= 1 && months <= 10) return 'M - ' + months;
+  if (months === 11) return 'M - 11';
+  if (months === 12) return 'M - 12';
+  if (months >= 13 && months <= 24) return 'M 13 -24';
+  if (months >= 25 && months <= 36) return 'M 25 - 36';
+  return '>M  36';
+}
+
+function getVolBucket(v) {
+  const n = parseFloat(v);
+  if (isNaN(n) || n <= 0) return '';
+  if (n <= 50) return '1 - 50';
+  if (n <= 100) return '51 - 100';
+  if (n <= 200) return '101 - 200';
+  if (n <= 350) return '201 - 350';
+  if (n <= 500) return '351 - 500';
+  if (n <= 750) return '501 - 750';
+  if (n <= 1000) return '751 - 1000';
+  if (n <= 2000) return '1001 - 2000';
+  if (n <= 3500) return '2001 - 3500';
+  if (n <= 5000) return '3501 - 5000';
+  if (n <= 7500) return '5001 - 7500';
+  if (n <= 10000) return '7501 - 10000';
+  if (n <= 15000) return '10001 - 15000';
+  if (n <= 20000) return '15001 - 20000';
+  if (n <= 30000) return '20001 - 30000';
+  if (n <= 40000) return '30001 - 40000';
+  if (n <= 50000) return '40001 - 50000';
+  return '> 50000';
+}
+
+function fmtChg(apr, may) {
+  const diff = may - apr;
+  const pct = apr > 0 ? ((diff / apr) * 100).toFixed(1) : (may > 0 ? '+100.0' : '0.0');
+  const cls = diff > 0 ? 'pos' : diff < 0 ? 'neg' : 'neu';
+  const sign = diff > 0 ? '+' : '';
+  return `<span class="${cls}">${sign}${diff}</span> <span class="${cls}" style="font-size:10px">(${sign}${pct}%)</span>`;
+}
+
+function fmtPct(n, total) {
+  return total > 0 ? ((n / total) * 100).toFixed(1) + '%' : '0.0%';
+}
+
+function setProgress(pct, msg) {
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = msg;
+}
+
+// ─── File Upload ──────────────────────────────────────────────────────────────
+function handleFile(id) {
+  const file = document.getElementById(id).files[0];
+  if (!file) return;
+  const statusEl = document.getElementById(id + 'Status');
+  statusEl.textContent = `⏳ Reading ${file.name}...`;
+  statusEl.className = 'file-status';
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      // cellDates:true → dates come as JS Date objects (correct, unambiguous)
+      // raw:true in sheet_to_json → preserves Date objects without converting to strings
+      const wb = XLSX.read(data, { type: 'array', cellDates: true });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      rawData[id] = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true });
+      statusEl.textContent = `✓ ${rawData[id].length.toLocaleString()} rows loaded`;
+      statusEl.className = 'file-status loaded';
+      updateAdminStats();
+      checkReadyToProcess();
+    } catch(err) {
+      statusEl.textContent = `❌ Error: ${err.message}`;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function updateAdminStats() {
+  const apr = (rawData.aprMaster ? 1 : 0) + (rawData.aprFT ? 1 : 0);
+  const may = (rawData.mayMaster ? 1 : 0) + (rawData.mayFT ? 1 : 0);
+  document.getElementById('s-admin-apr').textContent = `${apr} / 2`;
+  document.getElementById('s-admin-may').textContent = `${may} / 2`;
+  document.getElementById('s-admin-apr').style.color = apr === 2 ? 'var(--green)' : 'var(--muted)';
+  document.getElementById('s-admin-may').style.color = may === 2 ? 'var(--green)' : 'var(--muted)';
+}
+
+function checkReadyToProcess() {
+  const ready = rawData.aprMaster && rawData.aprFT && rawData.mayMaster && rawData.mayFT;
+  document.getElementById('processBtn').disabled = !ready;
+}
+
+// ─── Process Data ─────────────────────────────────────────────────────────────
+async function processData() {
+  const btn = document.getElementById('processBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Processing...';
+  document.getElementById('progressWrap').classList.add('show');
+
+  setProgress(5, 'Building lookup maps...');
+  await sleep(50);
+
+  // Build RM→GL/TL maps from both masters
+  const aprMap = buildRMMap(rawData.aprMaster);
+  const mayMap = buildRMMap(rawData.mayMaster);
+
+  setProgress(15, 'Apple-to-Apple: Calculating date range from May data...');
+  await sleep(50);
+
+  // APPLE TO APPLE LOGIC — Manager approved logic
+  // May = use only its own trading dates (4,5,6,7,8,11)
+  // April = use full range from 1 to last May date (1 to 11 April)
+  // Dates where one month has no data → shows 0
+
+  // Step 1: Get May trading day numbers and find max day
+  const mayDayNumbers = new Set(
+    rawData.mayFT
+      .map(r => {
+        const d = parseFTDate(r['First Trade Date New'] || r['FT Date'] || r['Trade Date']);
+        return d ? d.getUTCDate() : null;
+      })
+      .filter(Boolean)
+  );
+  const mayMaxDay = Math.max(...mayDayNumbers);
+  const mayDaysArr = [...mayDayNumbers].sort((a,b) => a-b);
+
+  // Step 2: May filtered = only May trading dates
+  // Exclude NRI unit rows
+  const mayFiltered = rawData.mayFT.filter(r => {
+    const d = parseFTDate(r['First Trade Date New'] || r['FT Date'] || r['Trade Date']);
+    if (!d) return false;
+    if (!mayDayNumbers.has(d.getUTCDate())) return false;
+    const unit = String(r['Unit Name'] || r['Unit'] || '').trim().toUpperCase();
+    if (unit === 'NRI') return false; // exclude NRI
+    return true;
+  });
+
+  // Step 3: April filtered = all dates from 1 to mayMaxDay
+  // Exclude NRI unit rows
+  const aprFiltered = rawData.aprFT.filter(r => {
+    const d = parseFTDate(r['First Trade Date New'] || r['FT Date'] || r['Trade Date']);
+    if (!d) return false;
+    const dayNum = d.getUTCDate();
+    if (dayNum < 1 || dayNum > mayMaxDay) return false;
+    const unit = String(r['Unit Name'] || r['Unit'] || '').trim().toUpperCase();
+    if (unit === 'NRI') return false; // exclude NRI
+    return true;
+  });
+
+  // Store info for display
+  processed = processed || {};
+  processed._tradingDayInfo = {
+    mayDays: mayDayNumbers.size,
+    mayDaysList: mayDaysArr.join(', '),
+    mayMaxDay,
+    aprRange: '1 to ' + mayMaxDay + ' April',
+    note: 'May dates: ' + mayDaysArr.join(', ') + ' | April range: 1-' + mayMaxDay + ' April'
+  };
+
+  setProgress(25, 'Processing April FT records...');
+  await sleep(50);
+
+  const aprFTs = await enrichFT(aprFiltered, aprMap, 'apr');
+
+  setProgress(55, 'Processing May FT records...');
+  await sleep(50);
+
+  const mayFTs = await enrichFT(mayFiltered, mayMap, 'may');
+
+  setProgress(80, 'Building comparison data...');
+  await sleep(50);
+
+  processed = { aprFTs, mayFTs, aprMap, mayMap };
+  // Make accessible in console for debugging
+  window._debug = { aprFTs, mayFTs };
+
+  // Update card stats
+  updateCardStats();
+
+  setProgress(100, '✅ Done!');
+  await sleep(500);
+
+  // Save processed data to Cloudflare KV for all users to see
+  if (CF_WORKER_URL) {
+    setProgress(100, '☁️ Saving to cloud...');
+    await saveToCloud({
+      aprFTs: processed.aprFTs,
+      mayFTs: processed.mayFTs,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const tdInfo = processed._tradingDayInfo;
+
+  // Show info bar
+  if (tdInfo) {
+    document.getElementById('infoBar').style.display = 'flex';
+    document.getElementById('tdMayVal').textContent = 'May: ' + tdInfo.mayDays + ' trading dates (' + tdInfo.mayDaysList + ')';
+    document.getElementById('tdAprVal').textContent = 'Apr: 1 to ' + tdInfo.mayMaxDay + ' April (full range)';
+    document.getElementById('tdAprRange').textContent = tdInfo.aprRange;
+    document.getElementById('tdMayRange').textContent = tdInfo.note;
+  }
+  document.getElementById('lastUpdated').textContent =
+    `Updated: ${new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` +
+    (tdInfo ? ` · Common dates: ${tdInfo.commonDaysList}` : '');
+
+  btn.textContent = '✅ Complete';
+  setTimeout(() => closeUpload(), 800);
+}
+
+function buildRMMap(masterData) {
+  const empCodeMap = new Map();
+  const nameMap = new Map();
+  const clientCodeMap = new Map(); // for age/state lookup by client code
+
+  if (!masterData) return { empCodeMap, nameMap, clientCodeMap };
+
+  masterData.forEach(row => {
+    const empCode = String(row['Emp Code'] || '').trim();
+    const userName = String(row['User Name'] || '').trim();
+    const glName = String(row['GL Name'] || '').trim();
+    const tlName = String(row['TL Name'] || '').trim();
+    const unit = String(row['Branch Name'] || '').trim();
+    const isDIY = String(row['IS DIY'] || '').trim();
+    const age = row['Age'];
+    const state = String(row['State'] || '').trim();
+    const clientCode = String(row['Client Code'] || row['Clientcode'] || '').trim();
+
+    const info = { glName, tlName, unit, isDIY, age, state, clientCode };
+
+    if (empCode) empCodeMap.set(empCode, info);
+    if (userName) {
+      const parts = userName.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        const key = (parts[0] + ' ' + parts[parts.length - 1]).toLowerCase();
+        nameMap.set(key, info);
+      }
+      nameMap.set(userName.toLowerCase(), info);
+    }
+    // Build client code map for age/state lookup — strip all spaces
+    const cleanCC = clientCode.replace(/\s+/g, '').toUpperCase();
+    if (cleanCC) clientCodeMap.set(cleanCC, { age, state, isDIY });
+  });
+
+  return { empCodeMap, nameMap, clientCodeMap };
+}
+
+async function enrichFT(ftRows, rmMap, month) {
+  const result = [];
+  const BATCH = 500;
+
+  for (let i = 0; i < ftRows.length; i += BATCH) {
+    const end = Math.min(i + BATCH, ftRows.length);
+    for (let j = i; j < end; j++) {
+      const row = { ...ftRows[j] };
+      const rmCode = String(row['RM Code'] || '').trim();
+      const rmName = String(row['RM Name'] || '').trim();
+
+      let info = null;
+
+      // Match by RM Code = Emp Code
+      if (rmCode && rmMap.empCodeMap.has(rmCode)) {
+        info = rmMap.empCodeMap.get(rmCode);
+      }
+
+      // Fallback: first+last name
+      if (!info && rmName) {
+        const parts = rmName.trim().split(/\s+/);
+        const key = parts.length >= 2
+          ? (parts[0] + ' ' + parts[parts.length - 1]).toLowerCase()
+          : rmName.toLowerCase();
+        if (rmMap.nameMap.has(key)) info = rmMap.nameMap.get(key);
+      }
+
+      // Assign GL/TL/Unit from RM match
+      if (info) {
+        row._gl = info.glName || '';
+        row._tl = info.tlName || '';
+        row._unit = normalizeUnit(row['Unit Name'] || info.unit || '');
+      } else {
+        row._gl = '';
+        row._tl = '';
+        row._unit = normalizeUnit(row['Unit Name'] || '');
+      }
+
+      // Assign Age/State/DIY from CLIENT CODE match (not RM match)
+      const clientCode = String(row['Clientcode'] || row['Client Code'] || '').replace(/\s+/g, '').toUpperCase();
+      const clientInfo = clientCode ? rmMap.clientCodeMap.get(clientCode) : null;
+      // DEBUG first 3 rows
+      if (j < 3) {
+      }
+      row._age = clientInfo?.age || '';
+      row._state = clientInfo?.state || '';
+      row._isDIY = clientInfo?.isDIY || '';
+
+      // If no GL = Admin row
+      if (!row._gl) {
+        row._gl = `Admin - ${row._unit}`;
+        row._tl = '';
+      }
+
+      // Activation month bucket
+      row._actMonth = calcActMonth(
+        row['Activation Date'],
+        row['First Trade Date New'] || row['FT Date'] || row['Trade Date']
+      );
+      // DEBUG: count buckets for first file (april)
+      if (j === result.length - 1 || j < 5) {
+      }
+
+      // Volume bucket
+      row._volBucket = getVolBucket(row['First Trade Date Volume'] || row['Volume'] || 0);
+
+      result.push(row);
+    }
+    await sleep(1);
+  }
+  return result;
+}
+
+// ─── Card Stats ───────────────────────────────────────────────────────────────
+function updateCardStats() {
+  if (!processed) return;
+  const { aprFTs, mayFTs } = processed;
+
+  const aprTotal = aprFTs.length;
+  const mayTotal = mayFTs.length;
+  const diff = mayTotal - aprTotal;
+  const sign = diff >= 0 ? '+' : '';
+
+  // Unit
+  document.getElementById('s-unit-apr').textContent = aprTotal.toLocaleString();
+  document.getElementById('s-unit-may').textContent = mayTotal.toLocaleString();
+  document.getElementById('s-unit-chg').textContent = `${sign}${diff}`;
+  document.getElementById('s-unit-chg').className = `stat-val ${diff >= 0 ? 'green' : 'neg'}`;
+
+  // GL (same totals)
+  document.getElementById('s-gl-apr').textContent = aprTotal.toLocaleString();
+  document.getElementById('s-gl-may').textContent = mayTotal.toLocaleString();
+  document.getElementById('s-gl-chg').textContent = `${sign}${diff}`;
+  document.getElementById('s-gl-chg').className = `stat-val ${diff >= 0 ? 'green' : 'neg'}`;
+
+  // Mode - same month
+  const aprM = aprFTs.filter(r => r._actMonth === 'M').length;
+  const mayM = mayFTs.filter(r => r._actMonth === 'M').length;
+  const mDiff = mayM - aprM;
+  const mSign = mDiff >= 0 ? '+' : '';
+  document.getElementById('s-mode-apr').textContent = aprM.toLocaleString();
+  document.getElementById('s-mode-may').textContent = mayM.toLocaleString();
+  document.getElementById('s-mode-chg').textContent = `${mSign}${mDiff}`;
+  document.getElementById('s-mode-chg').className = `stat-val ${mDiff >= 0 ? 'green' : 'neg'}`;
+
+  // MOM
+  document.getElementById('s-mom-apr').textContent = aprM.toLocaleString();
+  document.getElementById('s-mom-may').textContent = mayM.toLocaleString();
+  document.getElementById('s-mom-chg').textContent = `${mSign}${mDiff}`;
+  document.getElementById('s-mom-chg').className = `stat-val ${mDiff >= 0 ? 'green' : 'neg'}`;
+
+  // Volume
+  document.getElementById('s-vol-apr').textContent = aprTotal.toLocaleString();
+  document.getElementById('s-vol-may').textContent = mayTotal.toLocaleString();
+  document.getElementById('s-vol-chg').textContent = `${sign}${diff}`;
+  document.getElementById('s-vol-chg').className = `stat-val ${diff >= 0 ? 'green' : 'neg'}`;
+
+  // User
+  const aprUsers = new Set(aprFTs.map(r => r['RM Code'] || r['RM Name']).filter(Boolean)).size;
+  const mayUsers = new Set(mayFTs.map(r => r['RM Code'] || r['RM Name']).filter(Boolean)).size;
+  document.getElementById('s-user-apr').textContent = aprUsers.toLocaleString();
+  document.getElementById('s-user-may').textContent = mayUsers.toLocaleString();
+  const bothUsers = [...new Set(aprFTs.map(r => r['RM Code'] || r['RM Name']))].filter(
+    u => u && mayFTs.some(m => (m['RM Code'] || m['RM Name']) === u)
+  ).length;
+  document.getElementById('s-user-chg').textContent = bothUsers.toLocaleString();
+
+  // Age/State
+  const aprStates = new Set(aprFTs.map(r => r._state).filter(Boolean)).size;
+  const mayStates = new Set(mayFTs.map(r => r._state).filter(Boolean)).size;
+  document.getElementById('s-age-apr').textContent = aprStates;
+  document.getElementById('s-age-may').textContent = mayStates;
+  const sDiff = mayStates - aprStates;
+  document.getElementById('s-age-chg').textContent = `${sDiff >= 0 ? '+' : ''}${sDiff}`;
+  document.getElementById('s-age-chg').className = `stat-val ${sDiff >= 0 ? 'green' : 'neg'}`;
+
+  // DIY
+  const aprDIY = aprFTs.filter(r => r._isDIY === 'Y').length;
+  const mayDIY = mayFTs.filter(r => r._isDIY === 'Y').length;
+  const dDiff = mayDIY - aprDIY;
+  document.getElementById('s-diy-apr').textContent = aprDIY.toLocaleString();
+  document.getElementById('s-diy-may').textContent = mayDIY.toLocaleString();
+  document.getElementById('s-diy-chg').textContent = `${dDiff >= 0 ? '+' : ''}${dDiff}`;
+  document.getElementById('s-diy-chg').className = `stat-val ${dDiff >= 0 ? 'green' : 'neg'}`;
+}
+
+// ─── Report Opening ───────────────────────────────────────────────────────────
+function openReport(type) {
+  if (!processed) { alert('⚠️ Please upload data first via Admin Upload'); return; }
+  currentReport = type;
+
+  const titles = {
+    unit: '📈 Unit Wise Analysis — April vs May',
+    gl: '👥 GL & TL Performance — April vs May',
+    mode: '🔄 Mode Bifurcation — April vs May',
+    mom: '📅 MOM Trend — April vs May',
+    volume: '💰 Volume Bucket — April vs May',
+    user: '👤 User Wise Report — April vs May',
+    age: '🌍 Age & State Analysis — April vs May',
+    diy: '🎯 DIY vs Non-DIY — April vs May'
+  };
+
+  document.getElementById('reportTitle').textContent = titles[type];
+
+  // Destroy old charts
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch(e) {} });
+  charts = {};
+
+  const content = document.getElementById('reportContent');
+  content.innerHTML = '<div class="no-data"><span>⏳</span>Generating report...</div>';
+  document.getElementById('reportModal').classList.add('show');
+
+  setTimeout(() => {
+    const generators = { unit: genUnit, gl: genGL, mode: genMode, mom: genMOM, volume: genVolume, user: genUser, age: genAge, diy: genDIY };
+    if (generators[type]) generators[type]();
+  }, 100);
+}
+
+function closeReport() {
+  document.getElementById('reportModal').classList.remove('show');
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch(e) {} });
+  charts = {};
+}
+
+// ─── Chart Helper ─────────────────────────────────────────────────────────────
+function mkChart(id, type, labels, datasets, opts = {}) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  charts[id] = new Chart(canvas, {
+    type,
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: '#e0e8f0', font: { family: 'Space Mono', size: 11 } } }
+      },
+      scales: type !== 'doughnut' && type !== 'pie' ? {
+        x: { ticks: { color: '#5a7a9a', font: { family: 'Space Mono', size: 10 } }, grid: { color: '#1e2a3a' } },
+        y: { ticks: { color: '#5a7a9a', font: { family: 'Space Mono', size: 10 } }, grid: { color: '#1e2a3a' } }
+      } : {},
+      ...opts
+    }
+  });
+}
+
+// ─── Report: Unit Wise ────────────────────────────────────────────────────────
+function genUnit() {
+  const { aprFTs, mayFTs } = processed;
+  const content = document.getElementById('reportContent');
+
+  const units = ['HYD', 'Malad', 'Thane'];
+  const data = {};
+
+  units.forEach(u => {
+    const aFTs = aprFTs.filter(r => r._unit === u);
+    const mFTs = mayFTs.filter(r => r._unit === u);
+    const aRMs = new Set(aFTs.map(r => r['RM Name'] || r['RM Code']).filter(Boolean)).size;
+    const mRMs = new Set(mFTs.map(r => r['RM Name'] || r['RM Code']).filter(Boolean)).size;
+
+    data[u] = {
+      aprFT: aFTs.length, mayFT: mFTs.length,
+      aprRM: aRMs, mayRM: mRMs,
+      aprProd: aRMs > 0 ? (aFTs.length / aRMs).toFixed(2) : '0.00',
+      mayProd: mRMs > 0 ? (mFTs.length / mRMs).toFixed(2) : '0.00',
+    };
+  });
+
+  const totalApr = Object.values(data).reduce((s, d) => s + d.aprFT, 0);
+  const totalMay = Object.values(data).reduce((s, d) => s + d.mayFT, 0);
+
+  // Insights
+  const topUnit = units.reduce((a, b) => data[a].mayFT > data[b].mayFT ? a : b);
+  const bestProd = units.reduce((a, b) => parseFloat(data[a].mayProd) > parseFloat(data[b].mayProd) ? a : b);
+
+  let html = `
+    <div class="insights">
+      <div class="insight"><strong>Overall FTs:</strong> April ${totalApr.toLocaleString()} → May ${totalMay.toLocaleString()} — change of ${fmtChg(totalApr, totalMay)}</div>
+      <div class="insight"><strong>Largest Unit (Malad):</strong> ${data['Malad'].aprFT} → ${data['Malad'].mayFT} FTs. ${data['Malad'].mayFT > data['Malad'].aprFT ? '📈 Improving' : '📉 Declining'}</div>
+      <div class="insight warn"><strong>Smallest Unit (HYD):</strong> ${data['HYD'].aprFT} → ${data['HYD'].mayFT} FTs at ${data['HYD'].mayProd} FT/user productivity</div>
+      <div class="insight"><strong>Best Productivity:</strong> ${bestProd} at ${data[bestProd].mayProd} FT/user in May vs ${data[bestProd].aprProd} in April</div>
+      <div class="insight"><strong>Thane (Medium):</strong> ${data['Thane'].aprFT} → ${data['Thane'].mayFT} FTs — ${data['Thane'].mayFT > data['Thane'].aprFT ? 'growth momentum' : 'needs attention'}</div>
+    </div>
+
+    <div class="charts">
+      <div class="chart-box"><div class="chart-title">FT Count — April vs May</div><canvas id="unitC1"></canvas></div>
+      <div class="chart-box"><div class="chart-title">Productivity (FT / RM) — April vs May</div><canvas id="unitC2"></canvas></div>
+    </div>
+
+    <div class="table-section">
+      <div class="table-title">Unit Wise Summary</div>
+      <div class="table-wrap">
+        <table id="unitTable">
+          <thead>
+            <tr>
+              <th>Unit</th>
+              <th class="month-col-apr">Apr FTs</th>
+              <th class="month-col-may">May FTs</th>
+              <th class="month-col-chg">Change</th>
+              <th class="month-col-chg">% Change</th>
+              <th class="month-col-apr">Apr HdCnt</th>
+              <th class="month-col-may">May HdCnt</th>
+              <th class="month-col-apr">Apr Prod</th>
+              <th class="month-col-may">May Prod</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+  units.forEach(u => {
+    const d = data[u];
+    const diff = d.mayFT - d.aprFT;
+    const pct = d.aprFT > 0 ? ((diff / d.aprFT) * 100).toFixed(1) : '—';
+    const cls = diff > 0 ? 'pos' : diff < 0 ? 'neg' : 'neu';
+    html += `<tr>
+      <td>${u}</td>
+      <td>${d.aprFT}</td>
+      <td>${d.mayFT}</td>
+      <td class="${cls}">${diff > 0 ? '+' : ''}${diff}</td>
+      <td class="${cls}">${pct}%</td>
+      <td>${d.aprRM}</td>
+      <td>${d.mayRM}</td>
+      <td>${d.aprProd}</td>
+      <td>${d.mayProd}</td>
+    </tr>`;
+  });
+
+  const totalDiff = totalMay - totalApr;
+  const totalPct = totalApr > 0 ? ((totalDiff / totalApr) * 100).toFixed(1) : '—';
+  const totalCls = totalDiff > 0 ? 'pos' : totalDiff < 0 ? 'neg' : 'neu';
+
+  html += `<tr class="total">
+    <td>ALL UNITS</td>
+    <td>${totalApr}</td>
+    <td>${totalMay}</td>
+    <td class="${totalCls}">${totalDiff > 0 ? '+' : ''}${totalDiff}</td>
+    <td class="${totalCls}">${totalPct}%</td>
+    <td>${units.reduce((s,u) => s+data[u].aprRM,0)}</td>
+    <td>${units.reduce((s,u) => s+data[u].mayRM,0)}</td>
+    <td>—</td><td>—</td>
+  </tr></tbody></table></div></div>`;
+
+  content.innerHTML = html;
+
+  mkChart('unitC1', 'bar', units, [
+    { label: 'April', data: units.map(u => data[u].aprFT), backgroundColor: 'rgba(123,97,255,0.7)' },
+    { label: 'May', data: units.map(u => data[u].mayFT), backgroundColor: 'rgba(79,255,176,0.7)' }
+  ]);
+  mkChart('unitC2', 'bar', units, [
+    { label: 'April Prod', data: units.map(u => parseFloat(data[u].aprProd)), backgroundColor: 'rgba(123,97,255,0.7)' },
+    { label: 'May Prod', data: units.map(u => parseFloat(data[u].mayProd)), backgroundColor: 'rgba(79,255,176,0.7)' }
+  ]);
+}
+
+// ─── Report: GL & TL ─────────────────────────────────────────────────────────
+function genGL() {
+  const { aprFTs, mayFTs } = processed;
+  const content = document.getElementById('reportContent');
+  const UNITS = ['HYD', 'Malad', 'Thane'];
+  const ADMIN_ROW = 'Admin / DIY / Resigned / TL';
+
+  // Build GL → TL → counts
+  // NA GL rows go under their unit's real GL as Admin row
+  const NA_GL_VALUES = new Set(['NA', '', null, undefined]);
+
+  function buildGLData(fts) {
+    const gls = {};
+
+    // First pass — find real GL name per unit (exclude NA)
+    const unitGL = {};
+    fts.forEach(r => {
+      const unit = r._unit || '';
+      const gl = r._gl || '';
+      if (!gl || NA_GL_VALUES.has(gl) || gl.startsWith('Admin')) return;
+      if (!unitGL[unit]) unitGL[unit] = gl;
+    });
+
+    fts.forEach(r => {
+      const unit = r._unit || '';
+      const rawGL = r._gl || '';
+      const tl = r._tl || '(Direct / DIY)';
+
+      // NA rows or blank RM → go to unit's real GL as Admin row
+      const isAdmin = NA_GL_VALUES.has(rawGL) || 
+                      rawGL.startsWith('Admin') || 
+                      !r['RM Name'] || 
+                      String(r['RM Name']).trim() === '';
+
+      // Get the GL to assign to
+      const gl = isAdmin ? (unitGL[unit] || rawGL || unit) : rawGL;
+      if (!gl) return;
+
+      if (!gls[gl]) gls[gl] = { total: 0, tls: {}, adminCount: 0, unit, displayName: gl };
+      gls[gl].total++;
+
+      if (isAdmin) {
+        gls[gl].adminCount++;
+      } else {
+        if (!gls[gl].tls[tl]) gls[gl].tls[tl] = 0;
+        gls[gl].tls[tl]++;
+      }
+    });
+    return gls;
+  }
+
+  const aprGL = buildGLData(aprFTs);
+  const mayGL = buildGLData(mayFTs);
+
+  const allGLKeys = [...new Set([...Object.keys(aprGL), ...Object.keys(mayGL)])];
+  allGLKeys.sort((a, b) => (mayGL[b]?.total || 0) - (mayGL[a]?.total || 0));
+
+  const topGL = allGLKeys[0] || '';
+  const aprAdmin = allGLKeys.reduce((s, k) => s + (aprGL[k]?.adminCount || 0), 0);
+  const mayAdmin = allGLKeys.reduce((s, k) => s + (mayGL[k]?.adminCount || 0), 0);
+  const realGLs = allGLKeys;
+
+  let html = `
+    <div class="insights">
+      <div class="insight"><strong>Top GL in May:</strong> ${mayGL[topGL]?.displayName || topGL} with ${(mayGL[topGL]?.total || 0).toLocaleString()} FTs · Unit: ${mayGL[topGL]?.unit || ''}</div>
+      <div class="insight"><strong>Total FTs:</strong> April ${aprFTs.length.toLocaleString()} → May ${mayFTs.length.toLocaleString()}</div>
+      <div class="insight warn"><strong>${ADMIN_ROW}:</strong> April ${aprAdmin} · May ${mayAdmin} — unassigned RMs shown under their unit's GL</div>
+      <div class="insight"><strong>Total GLs:</strong> ${realGLs.length} GLs across both months</div>
+    </div>
+    <div class="charts">
+      <div class="chart-box wide"><div class="chart-title">GL Performance — April vs May</div><canvas id="glC1"></canvas></div>
+    </div>
+    <div class="table-section">
+      <div class="table-title">GL & TL Breakdown</div>
+      <div class="table-wrap">
+        <table id="glTable">
+          <thead>
+            <tr>
+              <th>GL / TL</th>
+              <th class="month-col-apr">Apr FTs</th>
+              <th class="month-col-may">May FTs</th>
+              <th class="month-col-chg">Change</th>
+              <th class="month-col-chg">% Change</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+  // Render each GL with its TLs and Admin row inside
+  realGLs.forEach(glKey => {
+    const aprG = aprGL[glKey];
+    const mayG = mayGL[glKey];
+    const glName = mayG?.displayName || aprG?.displayName || glKey;
+    const unit = mayG?.unit || aprG?.unit || '';
+
+    // GL total already includes admin count
+    const aprGLTotal = aprG?.total || 0;
+    const mayGLTotal = mayG?.total || 0;
+
+    // Admin counts inside this GL
+    const aprAdminU = aprG?.adminCount || 0;
+    const mayAdminU = mayG?.adminCount || 0;
+    const glDiff = mayGLTotal - aprGLTotal;
+    const glCls = glDiff >= 0 ? 'pos' : 'neg';
+    const glPct = aprGLTotal > 0 ? ((glDiff / aprGLTotal) * 100).toFixed(1) : (mayGLTotal > 0 ? '+100' : '0.0');
+
+    // GL header row
+    html += `<tr class="sub">
+      <td>${glName}</td>
+      <td>${aprGLTotal}</td><td>${mayGLTotal}</td>
+      <td class="${glCls}">${glDiff >= 0 ? '+' : ''}${glDiff}</td>
+      <td class="${glCls}">${glPct}%</td>
+    </tr>`;
+
+    // TL rows
+    const allTLs = [...new Set([
+      ...Object.keys(aprG?.tls || {}),
+      ...Object.keys(mayG?.tls || {})
+    ])].sort((a, b) => (mayG?.tls[b] || 0) - (mayG?.tls[a] || 0));
+
+    allTLs.forEach(tl => {
+      const at = aprG?.tls[tl] || 0;
+      const mt = mayG?.tls[tl] || 0;
+      const td = mt - at;
+      const tc = td > 0 ? 'pos' : td < 0 ? 'neg' : 'neu';
+      const tp = at > 0 ? ((td / at) * 100).toFixed(1) : (mt > 0 ? '+100' : '0.0');
+      html += `<tr>
+        <td style="padding-left:24px">↳ ${tl}</td>
+        <td>${at || '—'}</td><td>${mt || '—'}</td>
+        <td class="${tc}">${td >= 0 ? '+' : ''}${td}</td>
+        <td class="${tc}">${tp}%</td>
+      </tr>`;
+    });
+
+    // Admin / DIY / Resigned / TL row under this GL
+    const adminDiff = mayAdminU - aprAdminU;
+    const adminCls = adminDiff >= 0 ? 'pos' : 'neg';
+    const adminPct = aprAdminU > 0 ? ((adminDiff / aprAdminU) * 100).toFixed(1) : (mayAdminU > 0 ? '+100' : '0.0');
+    html += `<tr style="background:rgba(255,107,107,0.04)">
+      <td style="padding-left:24px;color:var(--muted)">↳ ${ADMIN_ROW}</td>
+      <td style="color:var(--muted)">${aprAdminU || '—'}</td>
+      <td style="color:var(--muted)">${mayAdminU || '—'}</td>
+      <td class="${adminCls}">${adminDiff >= 0 ? '+' : ''}${adminDiff}</td>
+      <td class="${adminCls}">${adminPct}%</td>
+    </tr>`;
+
+    // GL Total row
+    html += `<tr class="total">
+      <td>${glName} — Total</td>
+      <td>${aprGLTotal}</td><td>${mayGLTotal}</td>
+      <td class="${glCls}">${glDiff >= 0 ? '+' : ''}${glDiff}</td>
+      <td class="${glCls}">${glPct}%</td>
+    </tr>`;
+  });
+
+  // Grand Total
+  const aprGrand = aprFTs.length, mayGrand = mayFTs.length;
+  const grandDiff = mayGrand - aprGrand;
+  const grandCls = grandDiff >= 0 ? 'pos' : 'neg';
+  html += `<tr class="total" style="border-top:2px solid var(--green)">
+    <td>GRAND TOTAL</td>
+    <td>${aprGrand}</td><td>${mayGrand}</td>
+    <td class="${grandCls}">${grandDiff >= 0 ? '+' : ''}${grandDiff}</td>
+    <td class="${grandCls}">${aprGrand > 0 ? ((grandDiff / aprGrand) * 100).toFixed(1) : '—'}%</td>
+  </tr></tbody></table></div></div>`;
+
+  content.innerHTML = html;
+
+  const top5 = realGLs.slice(0, 5);
+  mkChart('glC1', 'bar', top5.map(k => mayGL[k]?.displayName || k), [
+    { label: 'April', data: top5.map(k => aprGL[k]?.total || 0), backgroundColor: 'rgba(123,97,255,0.7)' },
+    { label: 'May', data: top5.map(k => mayGL[k]?.total || 0), backgroundColor: 'rgba(79,255,176,0.7)' }
+  ], { indexAxis: 'y' });
+}
+
+// ─── Report: Mode Bifurcation ─────────────────────────────────────────────────
+function genMode() {
+  const { aprFTs, mayFTs } = processed;
+  const content = document.getElementById('reportContent');
+
+  const m11cats = new Set(['M - 11','M - 12','M 13 -24','M 25 - 36','>M  36']);
+  const olderCats = new Set(['M - 1','M - 2','M - 3','M - 4','M - 5','M - 6','M - 7','M - 8','M - 9','M - 10']);
+
+  function getMode(fts, unit) {
+    const rows = unit ? fts.filter(r => r._unit === unit) : fts;
+    const same = rows.filter(r => r._actMonth === 'M').length;
+    const m11 = rows.filter(r => m11cats.has(r._actMonth)).length;
+    const older = rows.filter(r => olderCats.has(r._actMonth)).length;
+    return { same, m11, older, total: rows.length };
+  }
+
+  const allUnits = ['HYD', 'Malad', 'Thane', 'All'];
+  const data = {};
+  allUnits.forEach(u => {
+    data[u] = {
+      apr: getMode(aprFTs, u === 'All' ? null : u),
+      may: getMode(mayFTs, u === 'All' ? null : u)
+    };
+  });
+
+  const aprSame = data['All'].apr.same, maySame = data['All'].may.same;
+  const aprM11 = data['All'].apr.m11, mayM11 = data['All'].may.m11;
+  const aprOld = data['All'].apr.older, mayOld = data['All'].may.older;
+
+  let html = `
+    <div class="insights">
+      <div class="insight"><strong>Same Month (M):</strong> April ${aprSame} → May ${maySame} — ${fmtChg(aprSame, maySame)}</div>
+      <div class="insight"><strong>Revival (M-11+):</strong> April ${aprM11} → May ${mayM11} — ${fmtChg(aprM11, mayM11)}</div>
+      <div class="insight warn"><strong>Older Month (M1–M10):</strong> April ${aprOld} → May ${mayOld} — ${fmtChg(aprOld, mayOld)}</div>
+      <div class="insight"><strong>Same Month mix:</strong> April ${fmtPct(aprSame, data['All'].apr.total)} → May ${fmtPct(maySame, data['All'].may.total)}</div>
+    </div>
+    <div class="charts">
+      <div class="chart-box"><div class="chart-title">Mode Split — April</div><canvas id="modeC1"></canvas></div>
+      <div class="chart-box"><div class="chart-title">Mode Split — May</div><canvas id="modeC2"></canvas></div>
+    </div>
+    <div class="table-section">
+      <div class="table-title">Mode Bifurcation by Unit</div>
+      <div class="table-wrap">
+        <table id="modeTable">
+          <thead>
+            <tr>
+              <th>Unit / Mode</th>
+              <th class="month-col-apr">Apr Same Mo</th><th class="month-col-may">May Same Mo</th><th class="month-col-chg">Chg</th>
+              <th class="month-col-apr">Apr M-11</th><th class="month-col-may">May M-11</th><th class="month-col-chg">Chg</th>
+              <th class="month-col-apr">Apr Older</th><th class="month-col-may">May Older</th><th class="month-col-chg">Chg</th>
+              <th class="month-col-apr">Apr Total</th><th class="month-col-may">May Total</th><th class="month-col-chg">Chg</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+  allUnits.forEach(u => {
+    const { apr, may } = data[u];
+    const sd = may.same - apr.same; const m11d = may.m11 - apr.m11;
+    const od = may.older - apr.older; const td = may.total - apr.total;
+    const rowCls = u === 'All' ? 'total' : '';
+    html += `<tr class="${rowCls}">
+      <td>${u === 'All' ? 'ALL UNITS' : u}</td>
+      <td>${apr.same}</td><td>${may.same}</td><td class="${sd>=0?'pos':'neg'}">${sd>=0?'+':''}${sd}</td>
+      <td>${apr.m11}</td><td>${may.m11}</td><td class="${m11d>=0?'pos':'neg'}">${m11d>=0?'+':''}${m11d}</td>
+      <td>${apr.older}</td><td>${may.older}</td><td class="${od>=0?'pos':'neg'}">${od>=0?'+':''}${od}</td>
+      <td>${apr.total}</td><td>${may.total}</td><td class="${td>=0?'pos':'neg'}">${td>=0?'+':''}${td}</td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div></div>`;
+  content.innerHTML = html;
+
+  const modeLabels = ['Same Month', 'M-11 Revival', 'Older Month'];
+  const aprVals = data['All'].apr;
+  const mayVals = data['All'].may;
+  mkChart('modeC1', 'doughnut', modeLabels, [{
+    data: [aprVals.same, aprVals.m11, aprVals.older],
+    backgroundColor: ['rgba(79,255,176,0.8)','rgba(123,97,255,0.8)','rgba(251,191,36,0.8)']
+  }]);
+  mkChart('modeC2', 'doughnut', modeLabels, [{
+    data: [mayVals.same, mayVals.m11, mayVals.older],
+    backgroundColor: ['rgba(79,255,176,0.8)','rgba(123,97,255,0.8)','rgba(251,191,36,0.8)']
+  }]);
+}
+
+// ─── Report: MOM Trend ────────────────────────────────────────────────────────
+function genMOM() {
+  const { aprFTs, mayFTs } = processed;
+  const content = document.getElementById('reportContent');
+
+  const aprCounts = {}, mayCounts = {};
+  BUCKETS.forEach(b => { aprCounts[b] = 0; mayCounts[b] = 0; });
+
+  aprFTs.forEach(r => { if (aprCounts[r._actMonth] !== undefined) aprCounts[r._actMonth]++; });
+  mayFTs.forEach(r => { if (mayCounts[r._actMonth] !== undefined) mayCounts[r._actMonth]++; });
+
+  const aprTotal = aprFTs.length, mayTotal = mayFTs.length;
+
+  const topApr = BUCKETS.reduce((a, b) => aprCounts[a] > aprCounts[b] ? a : b);
+  const topMay = BUCKETS.reduce((a, b) => mayCounts[a] > mayCounts[b] ? a : b);
+
+  let html = `
+    <div class="insights">
+      <div class="insight"><strong>Dominant Apr bucket:</strong> ${topApr} with ${aprCounts[topApr]} FTs (${fmtPct(aprCounts[topApr], aprTotal)})</div>
+      <div class="insight"><strong>Dominant May bucket:</strong> ${topMay} with ${mayCounts[topMay]} FTs (${fmtPct(mayCounts[topMay], mayTotal)})</div>
+      <div class="insight"><strong>Same Month (M):</strong> April ${aprCounts['M']} (${fmtPct(aprCounts['M'], aprTotal)}) → May ${mayCounts['M']} (${fmtPct(mayCounts['M'], mayTotal)})</div>
+      <div class="insight warn"><strong>Revival M-11:</strong> April ${aprCounts['M - 11']} → May ${mayCounts['M - 11']} — ${fmtChg(aprCounts['M - 11'], mayCounts['M - 11'])}</div>
+    </div>
+    <div class="charts">
+      <div class="chart-box wide"><div class="chart-title">Activation Bucket Distribution — April vs May</div><canvas id="momC1"></canvas></div>
+    </div>
+    <div class="table-section">
+      <div class="table-title">MOM Trend Comparison</div>
+      <div class="table-wrap">
+        <table id="momTable">
+          <thead>
+            <tr>
+              <th>Bucket</th>
+              <th class="month-col-apr">Apr Count</th><th class="month-col-apr">Apr %</th>
+              <th class="month-col-may">May Count</th><th class="month-col-may">May %</th>
+              <th class="month-col-chg">Change</th><th class="month-col-chg">% Chg</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+  BUCKETS.forEach(b => {
+    const a = aprCounts[b], m = mayCounts[b];
+    const d = m - a;
+    const cls = d > 0 ? 'pos' : d < 0 ? 'neg' : 'neu';
+    const pct = a > 0 ? ((d / a) * 100).toFixed(1) : (m > 0 ? '+100' : '0.0');
+    html += `<tr>
+      <td>${b}</td>
+      <td>${a}</td><td class="neu">${fmtPct(a, aprTotal)}</td>
+      <td>${m}</td><td class="neu">${fmtPct(m, mayTotal)}</td>
+      <td class="${cls}">${d >= 0 ? '+' : ''}${d}</td>
+      <td class="${cls}">${pct}%</td>
+    </tr>`;
+  });
+
+  const totalDiff = mayTotal - aprTotal;
+  const totalCls = totalDiff > 0 ? 'pos' : totalDiff < 0 ? 'neg' : 'neu';
+  html += `<tr class="total">
+    <td>GRAND TOTAL</td>
+    <td>${aprTotal}</td><td>100%</td>
+    <td>${mayTotal}</td><td>100%</td>
+    <td class="${totalCls}">${totalDiff >= 0 ? '+' : ''}${totalDiff}</td>
+    <td class="${totalCls}">${aprTotal > 0 ? ((totalDiff / aprTotal) * 100).toFixed(1) : '—'}%</td>
+  </tr></tbody></table></div></div>`;
+
+  content.innerHTML = html;
+
+  mkChart('momC1', 'bar', BUCKETS, [
+    { label: 'April', data: BUCKETS.map(b => aprCounts[b]), backgroundColor: 'rgba(123,97,255,0.7)' },
+    { label: 'May', data: BUCKETS.map(b => mayCounts[b]), backgroundColor: 'rgba(79,255,176,0.7)' }
+  ]);
+}
+
+// ─── Report: Volume Bucket ────────────────────────────────────────────────────
+function genVolume() {
+  const { aprFTs, mayFTs } = processed;
+  const content = document.getElementById('reportContent');
+
+  const aprCounts = {}, mayCounts = {};
+  VOL_BUCKETS.forEach(b => { aprCounts[b] = 0; mayCounts[b] = 0; });
+  aprFTs.forEach(r => { if (aprCounts[r._volBucket] !== undefined) aprCounts[r._volBucket]++; });
+  mayFTs.forEach(r => { if (mayCounts[r._volBucket] !== undefined) mayCounts[r._volBucket]++; });
+
+  const aprTotal = aprFTs.length, mayTotal = mayFTs.length;
+
+  // Unit-wise volume
+  const units = ['HYD', 'Malad', 'Thane'];
+  const unitData = {};
+  units.forEach(u => {
+    const aU = aprFTs.filter(r => r._unit === u);
+    const mU = mayFTs.filter(r => r._unit === u);
+    unitData[u] = { apr: aU.length, may: mU.length };
+  });
+
+  const topMay = VOL_BUCKETS.reduce((a, b) => mayCounts[a] > mayCounts[b] ? a : b);
+
+  let html = `
+    <div class="insights">
+      <div class="insight"><strong>Most common volume (May):</strong> ₹${topMay} with ${mayCounts[topMay]} FTs</div>
+      <div class="insight"><strong>Low value (<₹200):</strong> April ${aprCounts['1 - 50']+aprCounts['51 - 100']+aprCounts['101 - 200']} → May ${mayCounts['1 - 50']+mayCounts['51 - 100']+mayCounts['101 - 200']}</div>
+      <div class="insight warn"><strong>High value (>₹40K):</strong> April ${aprCounts['40001 - 50000']+aprCounts['> 50000']} → May ${mayCounts['40001 - 50000']+mayCounts['> 50000']}</div>
+    </div>
+    <div class="charts">
+      <div class="chart-box wide"><div class="chart-title">Volume Bucket Distribution — April vs May</div><canvas id="volC1"></canvas></div>
+    </div>
+    <div class="table-section">
+      <div class="table-title">Volume Bucket Comparison</div>
+      <div class="table-wrap">
+        <table id="volTable">
+          <thead>
+            <tr>
+              <th>Volume Bucket</th>
+              <th class="month-col-apr">Apr Count</th><th class="month-col-apr">Apr %</th>
+              <th class="month-col-may">May Count</th><th class="month-col-may">May %</th>
+              <th class="month-col-chg">Change</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+  VOL_BUCKETS.forEach(b => {
+    const a = aprCounts[b], m = mayCounts[b];
+    const d = m - a;
+    const cls = d > 0 ? 'pos' : d < 0 ? 'neg' : 'neu';
+    html += `<tr>
+      <td>₹${b}</td>
+      <td>${a}</td><td class="neu">${fmtPct(a, aprTotal)}</td>
+      <td>${m}</td><td class="neu">${fmtPct(m, mayTotal)}</td>
+      <td class="${cls}">${d >= 0 ? '+' : ''}${d}</td>
+    </tr>`;
+  });
+
+  html += `<tr class="total">
+    <td>GRAND TOTAL</td>
+    <td>${aprTotal}</td><td>100%</td>
+    <td>${mayTotal}</td><td>100%</td>
+    <td class="${mayTotal-aprTotal>=0?'pos':'neg'}">${mayTotal-aprTotal>=0?'+':''}${mayTotal-aprTotal}</td>
+  </tr></tbody></table></div></div>
+
+  <div class="table-section">
+    <div class="table-title">Unit-wise FT Count</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Unit</th>
+          <th class="month-col-apr">Apr FTs</th><th class="month-col-may">May FTs</th><th class="month-col-chg">Change</th><th class="month-col-chg">% Chg</th>
+        </tr></thead>
+        <tbody>`;
+
+  units.forEach(u => {
+    const { apr, may } = unitData[u];
+    const d = may - apr;
+    const cls = d >= 0 ? 'pos' : 'neg';
+    const pct = apr > 0 ? ((d / apr) * 100).toFixed(1) : '—';
+    html += `<tr><td>${u}</td><td>${apr}</td><td>${may}</td><td class="${cls}">${d>=0?'+':''}${d}</td><td class="${cls}">${pct}%</td></tr>`;
+  });
+  html += `<tr class="total"><td>ALL UNITS</td><td>${aprTotal}</td><td>${mayTotal}</td>
+    <td class="${mayTotal-aprTotal>=0?'pos':'neg'}">${mayTotal-aprTotal>=0?'+':''}${mayTotal-aprTotal}</td>
+    <td class="${mayTotal-aprTotal>=0?'pos':'neg'}">${aprTotal>0?((mayTotal-aprTotal)/aprTotal*100).toFixed(1):'—'}%</td>
+  </tr></tbody></table></div></div>`;
+
+  content.innerHTML = html;
+
+  const active = VOL_BUCKETS.filter(b => aprCounts[b] > 0 || mayCounts[b] > 0);
+  mkChart('volC1', 'bar', active, [
+    { label: 'April', data: active.map(b => aprCounts[b]), backgroundColor: 'rgba(123,97,255,0.7)' },
+    { label: 'May', data: active.map(b => mayCounts[b]), backgroundColor: 'rgba(79,255,176,0.7)' }
+  ]);
+}
+
+// ─── Report: User Wise ────────────────────────────────────────────────────────
+function genUser() {
+  const { aprFTs, mayFTs } = processed;
+  const content = document.getElementById('reportContent');
+
+  const aprUserMap = {}, mayUserMap = {};
+  let aprBlank = 0, mayBlank = 0;
+
+  // Helper: check if RM Name is a real name or just a number
+  function isValidRMName(name) {
+    if (!name || name.trim() === '') return false;
+    // If name is purely numeric → not a real name → treat as blank
+    if (/^\d+$/.test(name.trim())) return false;
+    return true;
+  }
+
+  aprFTs.forEach(r => {
+    const rmName = String(r['RM Name'] || '').trim();
+    const rmCode = String(r['RM Code'] || '').trim();
+    // If no valid RM name → goes to Admin row
+    if (!isValidRMName(rmName)) { aprBlank++; return; }
+    const key = rmCode || rmName;
+    if (!aprUserMap[key]) aprUserMap[key] = { name: rmName, code: rmCode, unit: r._unit || '', tl: r._tl || '', gl: r._gl || '', count: 0 };
+    aprUserMap[key].count++;
+  });
+
+  mayFTs.forEach(r => {
+    const rmName = String(r['RM Name'] || '').trim();
+    const rmCode = String(r['RM Code'] || '').trim();
+    // If no valid RM name → goes to Admin row
+    if (!isValidRMName(rmName)) { mayBlank++; return; }
+    const key = rmCode || rmName;
+    if (!mayUserMap[key]) mayUserMap[key] = { name: rmName, code: rmCode, unit: r._unit || '', tl: r._tl || '', gl: r._gl || '', count: 0 };
+    mayUserMap[key].count++;
+  });
+
+  const allKeys = [...new Set([...Object.keys(aprUserMap), ...Object.keys(mayUserMap)])];
+  allKeys.sort((a, b) => (mayUserMap[b]?.count || 0) - (mayUserMap[a]?.count || 0));
+
+  const topMay = allKeys[0];
+  const bothActive = allKeys.filter(k => aprUserMap[k] && mayUserMap[k]).length;
+  const newInMay = allKeys.filter(k => !aprUserMap[k] && mayUserMap[k]).length;
+  const droppedInMay = allKeys.filter(k => aprUserMap[k] && !mayUserMap[k]).length;
+
+  let html = `
+    <div class="insights">
+      <div class="insight"><strong>Top RM (May):</strong> ${mayUserMap[topMay]?.name} with ${mayUserMap[topMay]?.count} FTs</div>
+      <div class="insight"><strong>Active in both months:</strong> ${bothActive} RMs</div>
+      <div class="insight warn"><strong>New in May:</strong> ${newInMay} RMs · <strong>Dropped:</strong> ${droppedInMay} RMs</div>
+      <div class="insight"><strong>Total RMs:</strong> April ${Object.keys(aprUserMap).length} → May ${Object.keys(mayUserMap).length}</div>
+    </div>
+    <div class="charts">
+      <div class="chart-box wide"><div class="chart-title">Top 15 RMs — April vs May</div><canvas id="userC1"></canvas></div>
+    </div>
+    <div class="table-section">
+      <div class="table-title">User Wise Comparison</div>
+      <div class="table-wrap">
+        <table id="userTable">
+          <thead>
+            <tr>
+              <th>RM Name</th><th>RM Code</th><th>Unit</th><th>GL</th><th>TL</th>
+              <th class="month-col-apr">Apr FTs</th>
+              <th class="month-col-may">May FTs</th>
+              <th class="month-col-chg">Change</th>
+              <th class="month-col-chg">% Chg</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+  allKeys.forEach(k => {
+    const a = aprUserMap[k]?.count || 0;
+    const m = mayUserMap[k]?.count || 0;
+    const info = mayUserMap[k] || aprUserMap[k];
+    const d = m - a;
+    const cls = d > 0 ? 'pos' : d < 0 ? 'neg' : 'neu';
+    const pct = a > 0 ? ((d / a) * 100).toFixed(1) : (m > 0 ? '+100' : '0.0');
+    html += `<tr>
+      <td>${info.name}</td>
+      <td style="color:var(--muted)">${info.code}</td>
+      <td style="color:var(--muted)">${info.unit}</td>
+      <td style="color:var(--muted)">${info.gl}</td>
+      <td style="color:var(--muted)">${info.tl}</td>
+      <td>${a || '—'}</td><td>${m || '—'}</td>
+      <td class="${cls}">${d >= 0 ? '+' : ''}${d}</td>
+      <td class="${cls}">${pct}%</td>
+    </tr>`;
+  });
+
+  // Admin / DIY / Resigned / TL row for blank RM rows
+  if (aprBlank > 0 || mayBlank > 0) {
+    const blankDiff = mayBlank - aprBlank;
+    const blankCls = blankDiff >= 0 ? 'pos' : 'neg';
+    const blankPct = aprBlank > 0 ? ((blankDiff / aprBlank) * 100).toFixed(1) : (mayBlank > 0 ? '+100' : '0.0');
+    html += `<tr style="background:rgba(255,107,107,0.04)">
+      <td style="color:var(--muted)">Admin / DIY / Resigned / TL</td>
+      <td style="color:var(--muted)">—</td>
+      <td style="color:var(--muted)">—</td>
+      <td style="color:var(--muted)">—</td>
+      <td style="color:var(--muted)">—</td>
+      <td style="color:var(--muted)">${aprBlank || '—'}</td>
+      <td style="color:var(--muted)">${mayBlank || '—'}</td>
+      <td class="${blankCls}">${blankDiff >= 0 ? '+' : ''}${blankDiff}</td>
+      <td class="${blankCls}">${blankPct}%</td>
+    </tr>`;
+  }
+
+  const totalApr = aprFTs.length, totalMay = mayFTs.length;
+  const totalDiff = totalMay - totalApr;
+  html += `<tr class="total">
+    <td colspan="5">GRAND TOTAL</td>
+    <td>${totalApr}</td><td>${totalMay}</td>
+    <td class="${totalDiff>=0?'pos':'neg'}">${totalDiff>=0?'+':''}${totalDiff}</td>
+    <td class="${totalDiff>=0?'pos':'neg'}">${totalApr>0?((totalDiff/totalApr)*100).toFixed(1):'—'}%</td>
+  </tr></tbody></table></div></div>`;
+
+  content.innerHTML = html;
+
+  const top15 = allKeys.slice(0, 15);
+  mkChart('userC1', 'bar', top15.map(k => (mayUserMap[k] || aprUserMap[k]).name), [
+    { label: 'April', data: top15.map(k => aprUserMap[k]?.count || 0), backgroundColor: 'rgba(123,97,255,0.7)' },
+    { label: 'May', data: top15.map(k => mayUserMap[k]?.count || 0), backgroundColor: 'rgba(79,255,176,0.7)' }
+  ], { indexAxis: 'y' });
+}
+
+// ─── Report: Age & State ──────────────────────────────────────────────────────
+function genAge() {
+  const { aprFTs, mayFTs } = processed;
+  const content = document.getElementById('reportContent');
+
+  const ageGroups = ['18-25', '26-35', '36-45', '46-55', '56+'];
+  function getAge(age) {
+    const n = parseInt(age);
+    if (isNaN(n)) return 'Unknown';
+    if (n <= 25) return '18-25';
+    if (n <= 35) return '26-35';
+    if (n <= 45) return '36-45';
+    if (n <= 55) return '46-55';
+    return '56+';
+  }
+
+  const aprAge = {}, mayAge = {};
+  ageGroups.forEach(g => { aprAge[g] = 0; mayAge[g] = 0; });
+  aprFTs.forEach(r => { const g = getAge(r._age); if (aprAge[g] !== undefined) aprAge[g]++; });
+  mayFTs.forEach(r => { const g = getAge(r._age); if (mayAge[g] !== undefined) mayAge[g]++; });
+
+  const aprState = {}, mayState = {};
+  aprFTs.forEach(r => { if (r._state) { if (!aprState[r._state]) aprState[r._state] = 0; aprState[r._state]++; } });
+  mayFTs.forEach(r => { if (r._state) { if (!mayState[r._state]) mayState[r._state] = 0; mayState[r._state]++; } });
+
+  const topAgeApr = ageGroups.reduce((a, b) => aprAge[a] > aprAge[b] ? a : b);
+  const topAgeMay = ageGroups.reduce((a, b) => mayAge[a] > mayAge[b] ? a : b);
+  const allStates = [...new Set([...Object.keys(aprState), ...Object.keys(mayState)])];
+  allStates.sort((a, b) => (mayState[b] || 0) - (mayState[a] || 0));
+  const top15 = allStates.slice(0, 15);
+
+  let html = `
+    <div class="insights">
+      <div class="insight"><strong>Dominant age group (Apr):</strong> ${topAgeApr} with ${aprAge[topAgeApr]} FTs</div>
+      <div class="insight"><strong>Dominant age group (May):</strong> ${topAgeMay} with ${mayAge[topAgeMay]} FTs</div>
+      <div class="insight warn"><strong>Active states:</strong> April ${Object.keys(aprState).length} → May ${Object.keys(mayState).length}</div>
+      <div class="insight"><strong>Top state (May):</strong> ${top15[0]} with ${mayState[top15[0]] || 0} FTs</div>
+    </div>
+    <div class="charts">
+      <div class="chart-box"><div class="chart-title">Age Distribution — April vs May</div><canvas id="ageC1"></canvas></div>
+      <div class="chart-box"><div class="chart-title">Top 10 States — April vs May</div><canvas id="ageC2"></canvas></div>
+    </div>
+    <div class="table-section">
+      <div class="table-title">Age Group Comparison</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Age Group</th>
+            <th class="month-col-apr">Apr FTs</th><th class="month-col-may">May FTs</th>
+            <th class="month-col-chg">Change</th><th class="month-col-chg">% Chg</th>
+          </tr></thead>
+          <tbody>`;
+
+  ageGroups.forEach(g => {
+    const a = aprAge[g], m = mayAge[g];
+    const d = m - a; const cls = d >= 0 ? 'pos' : 'neg';
+    const pct = a > 0 ? ((d / a) * 100).toFixed(1) : (m > 0 ? '+100' : '0.0');
+    html += `<tr><td>${g}</td><td>${a}</td><td>${m}</td>
+      <td class="${cls}">${d>=0?'+':''}${d}</td>
+      <td class="${cls}">${pct}%</td></tr>`;
+  });
+  html += `</tbody></table></div></div>
+
+  <div class="table-section">
+    <div class="table-title">Top 15 States</div>
+    <div class="table-wrap">
+      <table id="ageTable">
+        <thead><tr>
+          <th>State</th>
+          <th class="month-col-apr">Apr FTs</th><th class="month-col-may">May FTs</th>
+          <th class="month-col-chg">Change</th><th class="month-col-chg">% Chg</th>
+        </tr></thead>
+        <tbody>`;
+
+  top15.forEach(s => {
+    const a = aprState[s] || 0, m = mayState[s] || 0;
+    const d = m - a; const cls = d >= 0 ? 'pos' : 'neg';
+    const pct = a > 0 ? ((d / a) * 100).toFixed(1) : (m > 0 ? '+100' : '0.0');
+    html += `<tr><td>${s}</td><td>${a}</td><td>${m}</td>
+      <td class="${cls}">${d>=0?'+':''}${d}</td>
+      <td class="${cls}">${pct}%</td></tr>`;
+  });
+
+  html += `</tbody></table></div></div>`;
+  content.innerHTML = html;
+
+  mkChart('ageC1', 'bar', ageGroups, [
+    { label: 'April', data: ageGroups.map(g => aprAge[g]), backgroundColor: 'rgba(123,97,255,0.7)' },
+    { label: 'May', data: ageGroups.map(g => mayAge[g]), backgroundColor: 'rgba(79,255,176,0.7)' }
+  ]);
+
+  const top10s = top15.slice(0, 10);
+  mkChart('ageC2', 'bar', top10s, [
+    { label: 'April', data: top10s.map(s => aprState[s] || 0), backgroundColor: 'rgba(123,97,255,0.7)' },
+    { label: 'May', data: top10s.map(s => mayState[s] || 0), backgroundColor: 'rgba(79,255,176,0.7)' }
+  ], { indexAxis: 'y' });
+}
+
+// ─── Report: DIY vs Non-DIY ───────────────────────────────────────────────────
+function genDIY() {
+  const { aprFTs, mayFTs } = processed;
+  const content = document.getElementById('reportContent');
+
+  // Only current month activations (M bucket)
+  const aprM = aprFTs.filter(r => r._actMonth === 'M');
+  const mayM = mayFTs.filter(r => r._actMonth === 'M');
+
+  function getDIYCounts(fts) {
+    const diy = fts.filter(r => r._isDIY === 'Y').length;
+    const nondiy = fts.filter(r => r._isDIY === 'N' || r._isDIY === 'Non-DIY').length;
+    return { diy, nondiy, total: fts.length };
+  }
+
+  const aprD = getDIYCounts(aprM), mayD = getDIYCounts(mayM);
+
+  // Unit breakdown
+  const units = ['HYD', 'Malad', 'Thane'];
+  const unitData = {};
+  units.forEach(u => {
+    const aU = aprM.filter(r => r._unit === u);
+    const mU = mayM.filter(r => r._unit === u);
+    unitData[u] = { apr: getDIYCounts(aU), may: getDIYCounts(mU) };
+  });
+
+  let html = `
+    <div class="insights" style="font-size:12px">
+      <div class="insight"><strong>DIY FTs (Apr):</strong> ${aprD.diy} / ${aprD.total} (${fmtPct(aprD.diy, aprD.total)}) → <strong>May:</strong> ${mayD.diy} / ${mayD.total} (${fmtPct(mayD.diy, mayD.total)})</div>
+      <div class="insight"><strong>Non-DIY FTs (Apr):</strong> ${aprD.nondiy} → <strong>May:</strong> ${mayD.nondiy} — ${fmtChg(aprD.nondiy, mayD.nondiy)}</div>
+    </div>
+    <div class="charts">
+      <div class="chart-box"><div class="chart-title">DIY Split — April (Same Month Activations)</div><canvas id="diyC1"></canvas></div>
+      <div class="chart-box"><div class="chart-title">DIY Split — May (Same Month Activations)</div><canvas id="diyC2"></canvas></div>
+    </div>
+    <div class="table-section">
+      <div class="table-title">DIY vs Non-DIY Comparison (Same Month Activations Only)</div>
+      <div class="table-wrap">
+        <table id="diyTable">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th class="month-col-apr">Apr FTs</th><th class="month-col-apr">Apr %</th>
+              <th class="month-col-may">May FTs</th><th class="month-col-may">May %</th>
+              <th class="month-col-chg">Change</th><th class="month-col-chg">% Chg</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+  [['DIY', 'diy'], ['Non-DIY', 'nondiy']].forEach(([label, key]) => {
+    const a = aprD[key], m = mayD[key];
+    const d = m - a; const cls = d >= 0 ? 'pos' : 'neg';
+    const pct = a > 0 ? ((d / a) * 100).toFixed(1) : (m > 0 ? '+100' : '0.0');
+    html += `<tr>
+      <td>${label}</td>
+      <td>${a}</td><td class="neu">${fmtPct(a, aprD.total)}</td>
+      <td>${m}</td><td class="neu">${fmtPct(m, mayD.total)}</td>
+      <td class="${cls}">${d>=0?'+':''}${d}</td>
+      <td class="${cls}">${pct}%</td>
+    </tr>`;
+  });
+
+  html += `<tr class="total">
+    <td>TOTAL (Same Month)</td>
+    <td>${aprD.total}</td><td>100%</td>
+    <td>${mayD.total}</td><td>100%</td>
+    <td class="${mayD.total-aprD.total>=0?'pos':'neg'}">${mayD.total-aprD.total>=0?'+':''}${mayD.total-aprD.total}</td>
+    <td class="${mayD.total-aprD.total>=0?'pos':'neg'}">${aprD.total>0?((mayD.total-aprD.total)/aprD.total*100).toFixed(1):'—'}%</td>
+  </tr></tbody></table></div></div>
+
+  <div class="table-section">
+    <div class="table-title">Unit-wise DIY Breakdown</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Unit</th>
+          <th class="month-col-apr">Apr DIY</th><th class="month-col-apr">Apr Non-DIY</th><th class="month-col-apr">Apr Total</th>
+          <th class="month-col-may">May DIY</th><th class="month-col-may">May Non-DIY</th><th class="month-col-may">May Total</th>
+          <th class="month-col-chg">Total Chg</th>
+        </tr></thead>
+        <tbody>`;
+
+  units.forEach(u => {
+    const { apr, may } = unitData[u];
+    const d = may.total - apr.total;
+    html += `<tr>
+      <td>${u}</td>
+      <td>${apr.diy}</td><td>${apr.nondiy}</td><td>${apr.total}</td>
+      <td>${may.diy}</td><td>${may.nondiy}</td><td>${may.total}</td>
+      <td class="${d>=0?'pos':'neg'}">${d>=0?'+':''}${d}</td>
+    </tr>`;
+  });
+
+  html += `<tr class="total">
+    <td>ALL UNITS</td>
+    <td>${units.reduce((s,u)=>s+unitData[u].apr.diy,0)}</td>
+    <td>${units.reduce((s,u)=>s+unitData[u].apr.nondiy,0)}</td>
+    <td>${aprD.total}</td>
+    <td>${units.reduce((s,u)=>s+unitData[u].may.diy,0)}</td>
+    <td>${units.reduce((s,u)=>s+unitData[u].may.nondiy,0)}</td>
+    <td>${mayD.total}</td>
+    <td class="${mayD.total-aprD.total>=0?'pos':'neg'}">${mayD.total-aprD.total>=0?'+':''}${mayD.total-aprD.total}</td>
+  </tr></tbody></table></div></div>`;
+
+  content.innerHTML = html;
+
+  const diyLabels = ['DIY', 'Non-DIY'];
+  mkChart('diyC1', 'doughnut', diyLabels, [{ data: [aprD.diy, aprD.nondiy], backgroundColor: ['rgba(79,255,176,0.8)', 'rgba(123,97,255,0.8)'] }]);
+  mkChart('diyC2', 'doughnut', diyLabels, [{ data: [mayD.diy, mayD.nondiy], backgroundColor: ['rgba(79,255,176,0.8)', 'rgba(123,97,255,0.8)'] }]);
+}
+
+// ─── Export Excel ─────────────────────────────────────────────────────────────
+function exportReport() {
+  const table = document.querySelector('#reportContent table');
+  if (!table) return alert('No table to export');
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.table_to_sheet(table);
+  XLSX.utils.book_append_sheet(wb, ws, 'Comparison');
+  XLSX.writeFile(wb, `${currentReport}_MoM_Comparison.xlsx`);
+}
+
+// ─── Admin / Password ─────────────────────────────────────────────────────────
+function openAdminUpload() {
+  document.getElementById('pwOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('pwInput').focus(), 100);
+}
+
+function checkPw() {
+  const val = document.getElementById('pwInput').value;
+  if (val === PW) {
+    document.getElementById('pwOverlay').classList.remove('show');
+    document.getElementById('uploadModal').classList.add('show');
+    document.getElementById('pwInput').value = '';
+    document.getElementById('pwErr').style.display = 'none';
+  } else {
+    document.getElementById('pwErr').style.display = 'block';
+    document.getElementById('pwInput').value = '';
+    document.getElementById('pwInput').focus();
+  }
+}
+
+function closeUpload() {
+  document.getElementById('uploadModal').classList.remove('show');
+  document.getElementById('progressWrap').classList.remove('show');
+  document.getElementById('processBtn').textContent = '⚡ Process & Generate Comparison';
+  document.getElementById('progressFill').style.width = '0%';
+}
+
+// Keyboard shortcut
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeReport(); closeUpload(); document.getElementById('pwOverlay').classList.remove('show'); }
+  if (e.key === 'Enter' && document.getElementById('pwOverlay').classList.contains('show')) checkPw();
+});
+</script>
+
+</body>
+</html>
