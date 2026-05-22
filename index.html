@@ -111,11 +111,9 @@ margin-top: 4px;
 /* Dashboard Grid */
 .grid {
 display: grid;
-grid-template-columns: repeat(3, minmax(0, 1fr));
+grid-template-columns: repeat(3, 1fr);
 gap: 18px;
-}
-@media (min-width: 901px) {
-.grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+width: 100%;
 }
 
 /* Card */
@@ -131,6 +129,8 @@ overflow: hidden;
 min-height: 220px;
 display: flex;
 flex-direction: column;
+box-sizing: border-box;
+width: 100%;
 }
 .card::before {
 content: ‘’;
@@ -449,7 +449,7 @@ tr.sub td { background: rgba(123,97,255,0.05); color: #a78bfa; font-weight: 600;
 .month-col-chg { color: #f7a74f !important; }
 
 /* Responsive */
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
 .grid { grid-template-columns: 1fr 1fr; }
 .upload-grid { grid-template-columns: 1fr; }
 .charts { grid-template-columns: 1fr; }
