@@ -706,7 +706,7 @@
 const PW = 'Megha@1234';
 
 // ── Cloudflare Config ──────────────────────────────────────────
-const CF_WORKER_URL = 'ft-mom-dashboard.anuj-sharma.workers.dev';           // e.g. https://ft-mom-worker.your-account.workers.dev
+const CF_WORKER_URL = 'https://ft-mom-dashboard.anuj-sharma.workers.dev';           // e.g. https://ft-mom-worker.your-account.workers.dev
 const CF_ADMIN_SECRET = 'MoM FT';  // Admin secret for write access
 // ──────────────────────────────────────────────────────────────
 
@@ -2391,6 +2391,41 @@ function closeUpload() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeReport(); closeUpload(); document.getElementById('pwOverlay').classList.remove('show'); }
   if (e.key === 'Enter' && document.getElementById('pwOverlay').classList.contains('show')) checkPw();
+});
+
+// ─── Auto-load from Cloudflare KV on page open ────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!CF_WORKER_URL) return;
+
+  document.getElementById('lastUpdated').textContent = '⏳ Loading data...';
+
+  try {
+    const cloudData = await loadFromCloud();
+
+    if (cloudData && cloudData.aprFTs && cloudData.mayFTs) {
+      processed = cloudData;
+      updateCardStats();
+
+      const ts = cloudData.timestamp
+        ? new Date(cloudData.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : 'Unknown';
+      document.getElementById('lastUpdated').textContent = `Last updated: ${ts}`;
+
+      // Show info bar if trading day info available
+      if (cloudData._tradingDayInfo) {
+        const tdInfo = cloudData._tradingDayInfo;
+        document.getElementById('infoBar').style.display = 'flex';
+        document.getElementById('tdMayVal').textContent = 'Curr Month: ' + tdInfo.mayDays + ' dates (' + tdInfo.mayDaysList + ')';
+        document.getElementById('tdAprVal').textContent = 'Prev Month: ' + tdInfo.aprDays + ' dates (' + tdInfo.aprDaysList + ')';
+        document.getElementById('tdAprRange').textContent = 'All dates used — no filtering';
+        document.getElementById('tdMayRange').textContent = tdInfo.note;
+      }
+    } else {
+      document.getElementById('lastUpdated').textContent = 'No data published yet';
+    }
+  } catch (e) {
+    document.getElementById('lastUpdated').textContent = 'Could not load data';
+  }
 });
 </script>
 </body>
