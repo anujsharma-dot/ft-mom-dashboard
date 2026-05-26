@@ -1369,6 +1369,7 @@ function updateCardStats() {
   document.getElementById('s-diy-may').textContent = mayDIY.toLocaleString();
   document.getElementById('s-diy-chg').textContent = `${dDiff >= 0 ? '+' : ''}${dDiff}`;
   document.getElementById('s-diy-chg').className = `stat-val ${dDiff >= 0 ? 'green' : 'neg'}`;
+
 }
 
 // ─── Report Opening ───────────────────────────────────────────────────────────
@@ -1438,11 +1439,33 @@ function genUnit() {
   const units = ['HYD', 'Malad', 'Thane'];
   const data = {};
 
+  // Head count = unique RMs from Master file per unit (all RMs, not just those who did FTs)
+  const aprMasterRMs = {}, mayMasterRMs = {};
+  units.forEach(u => { aprMasterRMs[u] = new Set(); mayMasterRMs[u] = new Set(); });
+
+  // Build head count from Master via empCodeMap
+  if (processed.aprMap && processed.aprMap.empCodeMap) {
+    processed.aprMap.empCodeMap.forEach((info, empCode) => {
+      const u = info.unit;
+      if (units.includes(u)) aprMasterRMs[u].add(empCode);
+    });
+  }
+  if (processed.mayMap && processed.mayMap.empCodeMap) {
+    processed.mayMap.empCodeMap.forEach((info, empCode) => {
+      const u = info.unit;
+      if (units.includes(u)) mayMasterRMs[u].add(empCode);
+    });
+  }
+
   units.forEach(u => {
     const aFTs = aprFTs.filter(r => r._unit === u);
     const mFTs = mayFTs.filter(r => r._unit === u);
-    const aRMs = new Set(aFTs.map(r => r['RM Name'] || r['RM Code']).filter(Boolean)).size;
-    const mRMs = new Set(mFTs.map(r => r['RM Name'] || r['RM Code']).filter(Boolean)).size;
+
+    // Use Master head count; fallback to unique RMs in FT if Master unavailable
+    const aRMs = aprMasterRMs[u].size > 0 ? aprMasterRMs[u].size :
+      new Set(aFTs.map(r => r['RM Code'] || r['RM Name']).filter(Boolean)).size;
+    const mRMs = mayMasterRMs[u].size > 0 ? mayMasterRMs[u].size :
+      new Set(mFTs.map(r => r['RM Code'] || r['RM Name']).filter(Boolean)).size;
 
     data[u] = {
       aprFT: aFTs.length, mayFT: mFTs.length,
@@ -1799,8 +1822,12 @@ function genMode() {
       <div class="insight"><strong>Same Month mix:</strong> April ${fmtPct(aprSame, data['All'].apr.total)} → May ${fmtPct(maySame, data['All'].may.total)}</div>
     </div>
     <div class="charts">
-      <div class="chart-box"><div class="chart-title">Mode Split — April</div><canvas id="modeC1"></canvas></div>
-      <div class="chart-box"><div class="chart-title">Mode Split — May</div><canvas id="modeC2"></canvas></div>
+      <div class="chart-box"><div class="chart-title">Mode Split — Previous Month</div><canvas id="modeC1"></canvas>
+        <div id="modeC1pct" style="margin-top:12px;display:flex;justify-content:center;gap:16px;font-family:'Space Mono',monospace;font-size:12px;flex-wrap:wrap"></div>
+      </div>
+      <div class="chart-box"><div class="chart-title">Mode Split — Current Month</div><canvas id="modeC2"></canvas>
+        <div id="modeC2pct" style="margin-top:12px;display:flex;justify-content:center;gap:16px;font-family:'Space Mono',monospace;font-size:12px;flex-wrap:wrap"></div>
+      </div>
     </div>
     <div class="table-section">
       <div class="table-title">Mode Bifurcation by Unit</div>
@@ -1835,16 +1862,26 @@ function genMode() {
   el2.innerHTML = html;
 
   const modeLabels = ['Same Month', 'M-11 Revival', 'Older Month'];
+  const modeColors = ['rgba(79,255,176,0.8)', 'rgba(123,97,255,0.8)', 'rgba(251,191,36,0.8)'];
   const aprVals = data['All'].apr;
   const mayVals = data['All'].may;
-  mkChart('modeC1', 'doughnut', modeLabels, [{
-    data: [aprVals.same, aprVals.m11, aprVals.older],
-    backgroundColor: ['rgba(79,255,176,0.8)','rgba(123,97,255,0.8)','rgba(251,191,36,0.8)']
-  }]);
-  mkChart('modeC2', 'doughnut', modeLabels, [{
-    data: [mayVals.same, mayVals.m11, mayVals.older],
-    backgroundColor: ['rgba(79,255,176,0.8)','rgba(123,97,255,0.8)','rgba(251,191,36,0.8)']
-  }]);
+  const aprTotal_ = aprVals.total, mayTotal_ = mayVals.total;
+
+  mkChart('modeC1', 'doughnut', modeLabels, [{ data: [aprVals.same, aprVals.m11, aprVals.older], backgroundColor: modeColors }]);
+  mkChart('modeC2', 'doughnut', modeLabels, [{ data: [mayVals.same, mayVals.m11, mayVals.older], backgroundColor: modeColors }]);
+
+  // Add % labels below each pie chart
+  const pctColors = ['#4ff7b0', '#a78bfa', '#f7a74f'];
+  const aprData = [aprVals.same, aprVals.m11, aprVals.older];
+  const mayData = [mayVals.same, mayVals.m11, mayVals.older];
+
+  document.getElementById('modeC1pct').innerHTML = modeLabels.map((l, i) =>
+    `<span style="color:${pctColors[i]}">● ${l}: ${aprData[i]} (${aprTotal_ > 0 ? ((aprData[i]/aprTotal_)*100).toFixed(1) : 0}%)</span>`
+  ).join('');
+
+  document.getElementById('modeC2pct').innerHTML = modeLabels.map((l, i) =>
+    `<span style="color:${pctColors[i]}">● ${l}: ${mayData[i]} (${mayTotal_ > 0 ? ((mayData[i]/mayTotal_)*100).toFixed(1) : 0}%)</span>`
+  ).join('');
 }
 
 // ─── Report: MOM Trend ────────────────────────────────────────────────────────
@@ -1913,18 +1950,7 @@ function genMOM() {
     <td class="${totalCls}">${aprTotal > 0 ? ((totalDiff / aprTotal) * 100).toFixed(1) : '—'}%</td>
   </tr>`;
 
-  // Data in % row — each bucket count / grand total * 100
-  html += `<tr style="background:rgba(79,247,176,0.05);font-style:italic">
-    <td style="color:#8892a4;font-size:13px">DATA IN %</td>
-    ${BUCKETS.map(b => {
-      const aprPct = aprTotal > 0 ? ((aprCounts[b] / aprTotal) * 100).toFixed(2) + '%' : '0.00%';
-      const mayPct = mayTotal > 0 ? ((mayCounts[b] / mayTotal) * 100).toFixed(2) + '%' : '0.00%';
-      return `<td style="color:#f7a74f;font-size:12px">${aprPct}</td><td style="color:#f7a74f;font-size:12px">${mayPct}</td>`;
-    }).join('')}
-    <td style="color:#f7a74f">100%</td><td style="color:#f7a74f">100%</td>
-    <td></td><td></td>
-  </tr>
-  </tbody></table></div></div>`;
+  html += `</tbody></table></div></div>`;
 
   content.innerHTML = html;
 
@@ -2012,9 +2038,29 @@ function genVolume(filterUnit) {
   content.innerHTML = html;
 
   const active = VOL_BUCKETS.filter(b => aprCounts[b] > 0 || mayCounts[b] > 0);
-  mkChart('volC1', 'bar', active, [
-    { label: 'Prev Month', data: active.map(b => aprCounts[b]), backgroundColor: 'rgba(123,97,255,0.7)' },
-    { label: 'Curr Month', data: active.map(b => mayCounts[b]), backgroundColor: 'rgba(79,255,176,0.7)' }
+  mkChart('volC1', 'line', active, [
+    {
+      label: 'Prev Month',
+      data: active.map(b => aprCounts[b]),
+      borderColor: '#a78bfa',
+      backgroundColor: 'rgba(167,139,250,0.1)',
+      pointBackgroundColor: '#a78bfa',
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      tension: 0.4,
+      fill: true
+    },
+    {
+      label: 'Curr Month',
+      data: active.map(b => mayCounts[b]),
+      borderColor: '#4ff7b0',
+      backgroundColor: 'rgba(79,247,176,0.1)',
+      pointBackgroundColor: '#4ff7b0',
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      tension: 0.4,
+      fill: true
+    }
   ]);
 }
 
@@ -2226,6 +2272,38 @@ function genAge() {
       <td class="${cls}">${pct}%</td></tr>`;
   });
 
+  // Age vs Revenue (Volume) analysis
+  const aprAgeVol = {}, mayAgeVol = {}, aprAgeFTCount = {}, mayAgeFTCount = {};
+  ageGroups.forEach(g => { aprAgeVol[g] = 0; mayAgeVol[g] = 0; aprAgeFTCount[g] = 0; mayAgeFTCount[g] = 0; });
+
+  aprFTs.forEach(r => {
+    const g = getAge(r._age);
+    if (!ageGroups.includes(g)) return;
+    const vol = parseFloat(r['First Trade Date Volume'] || r['Volume'] || 0);
+    if (!isNaN(vol)) aprAgeVol[g] += vol;
+    aprAgeFTCount[g]++;
+  });
+
+  mayFTs.forEach(r => {
+    const g = getAge(r._age);
+    if (!ageGroups.includes(g)) return;
+    const vol = parseFloat(r['First Trade Date Volume'] || r['Volume'] || 0);
+    if (!isNaN(vol)) mayAgeVol[g] += vol;
+    mayAgeFTCount[g]++;
+  });
+
+  // RPO = Total Volume / FT Count per age group
+  const aprRPO = {}, mayRPO = {};
+  ageGroups.forEach(g => {
+    aprRPO[g] = aprAgeFTCount[g] > 0 ? Math.round(aprAgeVol[g] / aprAgeFTCount[g]) : 0;
+    mayRPO[g] = mayAgeFTCount[g] > 0 ? Math.round(mayAgeVol[g] / mayAgeFTCount[g]) : 0;
+  });
+
+  html += `
+  <div class="charts">
+    <div class="chart-box wide"><div class="chart-title">Age Group — RPO (Revenue Per Order) Prev vs Curr Month</div><canvas id="ageC3"></canvas></div>
+  </div>`;
+
   html += `</tbody></table></div></div>`;
   content.innerHTML = html;
 
@@ -2239,6 +2317,59 @@ function genAge() {
     { label: 'Prev Month', data: top10s.map(s => aprState[s] || 0), backgroundColor: 'rgba(123,97,255,0.7)' },
     { label: 'Curr Month', data: top10s.map(s => mayState[s] || 0), backgroundColor: 'rgba(79,255,176,0.7)' }
   ], { indexAxis: 'y' });
+
+  // Two line chart: Prev RPO and Curr RPO per age group
+  if (document.getElementById('ageC3')) {
+    charts['ageC3'] = new Chart(document.getElementById('ageC3'), {
+      type: 'line',
+      data: {
+        labels: ageGroups,
+        datasets: [
+          {
+            label: 'Prev Month RPO (₹)',
+            data: ageGroups.map(g => aprRPO[g]),
+            borderColor: '#a78bfa',
+            backgroundColor: 'rgba(167,139,250,0.1)',
+            pointBackgroundColor: '#a78bfa',
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            tension: 0.4,
+            fill: true
+          },
+          {
+            label: 'Curr Month RPO (₹)',
+            data: ageGroups.map(g => mayRPO[g]),
+            borderColor: '#f7a74f',
+            backgroundColor: 'rgba(247,167,79,0.1)',
+            pointBackgroundColor: '#f7a74f',
+            pointRadius: 6,
+            pointHoverRadius: 8,
+            tension: 0.4,
+            fill: true
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { labels: { color: '#e8ecf5', font: { family: 'Space Mono', size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: ctx => ctx.dataset.label + ': ₹' + ctx.parsed.y.toLocaleString()
+            }
+          }
+        },
+        scales: {
+          y: {
+            ticks: { color: '#8892a4', font: { family: 'Space Mono', size: 10 }, callback: v => '₹' + v.toLocaleString() },
+            grid: { color: '#2a3045' },
+            title: { display: true, text: 'RPO (₹)', color: '#f7a74f' }
+          },
+          x: { ticks: { color: '#8892a4', font: { family: 'Space Mono', size: 10 } }, grid: { color: '#2a3045' } }
+        }
+      }
+    });
+  }
 }
 
 // ─── Report: DIY vs Non-DIY ───────────────────────────────────────────────────
@@ -2271,8 +2402,8 @@ function genDIY() {
       <div class="insight"><strong>Non-DIY (N + blank):</strong> Prev ${aprD.nondiy} (${fmtPct(aprD.nondiy, aprD.total)}) → Curr ${mayD.nondiy} (${fmtPct(mayD.nondiy, mayD.total)})</div>
     </div>
     <div class="charts">
-      <div class="chart-box"><div class="chart-title">DIY Split — Previous Month (All FTs)</div><canvas id="diyC1"></canvas></div>
-      <div class="chart-box"><div class="chart-title">DIY Split — Current Month (All FTs)</div><canvas id="diyC2"></canvas></div>
+      <div class="chart-box"><div class="chart-title">DIY Split — Previous Month</div><canvas id="diyC1"></canvas></div>
+      <div class="chart-box"><div class="chart-title">DIY Split — Current Month</div><canvas id="diyC2"></canvas></div>
     </div>
     <div class="table-section">
       <div class="table-title">DIY vs Non-DIY Comparison (All FTs)</div>
@@ -2345,6 +2476,7 @@ function genDIY() {
 
   content.innerHTML = html;
 
+  // Butterfly chart for DIY
   const diyLabels = ['DIY', 'Non-DIY'];
   mkChart('diyC1', 'doughnut', diyLabels, [{ data: [aprD.diy, aprD.nondiy], backgroundColor: ['rgba(79,255,176,0.8)', 'rgba(123,97,255,0.8)'] }]);
   mkChart('diyC2', 'doughnut', diyLabels, [{ data: [mayD.diy, mayD.nondiy], backgroundColor: ['rgba(79,255,176,0.8)', 'rgba(123,97,255,0.8)'] }]);
